@@ -314,5 +314,5 @@ private final class LogHandler: NSObject, LibboxCommandClientHandlerProtocol {
     func writeOutbounds(_: (any LibboxOutboundGroupItemIteratorProtocol)?) {}
     func initializeClashMode(_: (any LibboxStringIteratorProtocol)?, currentMode _: String?) {}
     func updateClashMode(_: String?) {}
-    func writeConnectionEvents(_: LibboxConnectionEvents?) {}
+    func write(_: LibboxConnectionEvents?) {}
 }
