@@ -211,9 +211,9 @@ final class TunnelPlatform: NSObject, LibboxPlatformInterfaceProtocol, LibboxCom
         ret0_.pointee = fd
     }
 
-    func usePlatformAutoDetectInterfaceControl() -> Bool { false }
+    func usePlatformAutoDetectControl() -> Bool { false }
 
-    func autoDetectInterfaceControl(_: Int32) throws {}
+    func autoDetectControl(_: Int32) throws {}
 
     func findConnectionOwner(_: Int32, sourceAddress _: String?, sourcePort _: Int32, destinationAddress _: String?, destinationPort _: Int32) throws -> LibboxConnectionOwner {
         throw TunnelError("not supported")
@@ -238,7 +238,7 @@ final class TunnelPlatform: NSObject, LibboxPlatformInterfaceProtocol, LibboxCom
         first.wait()
     }
 
-    private static func report(_ path: NWPath, to listener: LibboxInterfaceUpdateListenerProtocol) {
+    private static func report(_ path: Network.NWPath, to listener: LibboxInterfaceUpdateListenerProtocol) {
         guard path.status != .unsatisfied, let interface = path.availableInterfaces.first else {
             listener.updateDefaultInterface("", interfaceIndex: -1, isExpensive: false, isConstrained: false)
             return

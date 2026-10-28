@@ -61,9 +61,7 @@ jobs:
           key: libbox-android-${{ env.SING_BOX_VERSION }}-${{ hashFiles('scripts/build_libbox.sh') }}
       - name: Build libbox
         if: steps.libbox.outputs.cache-hit != 'true'
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
-        run: bash scripts/build_libbox.sh android
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" bash scripts/build_libbox.sh android
       - name: Release keystore
         env:
           KEYSTORE: ${{ secrets.BOXPILOT_KEYSTORE_BASE64 }}
