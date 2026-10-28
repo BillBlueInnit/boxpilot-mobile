@@ -1,0 +1,20 @@
+BoxPilot for Android and iOS
+Copyright (c) 2026 BoxPilot contributors
+
+The source code in this repository is licensed under the MIT License (see
+LICENSE). It includes boxpilot-core from https://github.com/BillBlueInnit/boxpilot,
+also MIT licensed.
+
+Release builds (APK and IPA) additionally contain libbox, built from sing-box
+(https://github.com/SagerNet/sing-box), Copyright (C) 2022 by nekohasekai,
+licensed under the GNU General Public License v3.0 or later. Because the
+binaries link libbox, each release APK and IPA as a whole is distributed under
+the terms of the GPL-3.0-or-later. The complete corresponding source is this
+repository, boxpilot-core, and the sing-box release named in
+scripts/build_libbox.sh (SING_BOX_VERSION); scripts/build_libbox.sh rebuilds
+libbox from that source.
+
+sing-box's licence adds: "no derivative work may use the name or imply
+association with this application without prior consent." BoxPilot is an
+independent project, is not affiliated with or endorsed by sing-box or its
+authors, and does not use the sing-box name for itself.
