@@ -34,8 +34,11 @@ unless tunnel
   group.new_file('PacketTunnel.entitlements') unless group.files.any? { |f| f.path == 'PacketTunnel.entitlements' }
   tunnel.source_build_phase.add_file_reference(source)
   tunnel.frameworks_build_phase.add_file_reference(libbox_ref)
-  ne = project.frameworks_group.new_file('System/Library/Frameworks/NetworkExtension.framework', :sdk_root)
-  tunnel.frameworks_build_phase.add_file_reference(ne)
+  # libbox uses UIKit (screen state, background tasks) besides NetworkExtension.
+  %w[NetworkExtension UIKit].each do |name|
+    fw = project.frameworks_group.new_file("System/Library/Frameworks/#{name}.framework", :sdk_root)
+    tunnel.frameworks_build_phase.add_file_reference(fw)
+  end
   %w[libresolv.tbd].each do |lib|
     tunnel.frameworks_build_phase.add_file_reference(project.frameworks_group.new_file("usr/lib/#{lib}", :sdk_root))
   end

@@ -120,7 +120,11 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         pendingStop?.cancel()
         pendingStop = nil
         stopRequested = false
-        guard let manager = try? await loadManager() ?? (await prepare() ? self.manager : nil) else {
+        var found = (try? await loadManager()) ?? nil
+        if found == nil, await prepare() {
+            found = self.manager
+        }
+        guard let manager = found else {
             return "VPN permission is required"
         }
         if !manager.isEnabled {
