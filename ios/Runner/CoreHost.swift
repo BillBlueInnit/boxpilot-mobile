@@ -216,6 +216,7 @@ final class CoreHost: NSObject, FlutterStreamHandler {
             }
         }
     }
+}
 
 /// The App Group container the app shares with the extension.
 struct AppPaths {
