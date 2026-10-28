@@ -17,9 +17,8 @@ runner.build_configurations.each do |c|
   c.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
   c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = deployment
 end
-unless runner.frameworks_build_phase.files_references.include?(libbox_ref)
-  runner.frameworks_build_phase.add_file_reference(libbox_ref)
-end
+# Only the extension links libbox; the app reads the core through its Clash API.
+runner.frameworks_build_phase.files.select { |f| f.file_ref == libbox_ref }.each(&:remove_from_project)
 host = runner.source_build_phase
 runner_group = project.main_group['Runner']
 core_host = runner_group.files.find { |f| f.path == 'CoreHost.swift' } || runner_group.new_file('CoreHost.swift')
@@ -72,10 +71,15 @@ unless tunnel
   runner.add_dependency(tunnel)
 end
 
-runner.build_configurations.each do |c|
-  c.build_settings['FRAMEWORK_SEARCH_PATHS'] = ['$(inherited)', '$(PROJECT_DIR)']
+# Embedding the extension after Flutter's "Thin Binary" script makes a build cycle;
+# it has to run before the script phases.
+embed = runner.copy_files_build_phases.find { |p| p.name == 'Embed Foundation Extensions' }
+first_script = runner.build_phases.index { |p| p.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase) && p.name.to_s.include?('Thin Binary') }
+if embed && first_script && runner.build_phases.index(embed) > first_script
+  runner.build_phases.delete(embed)
+  runner.build_phases.insert(first_script, embed)
 end
 
-# Libbox is a static framework inside the xcframework, so it is linked, not embedded.
+# Libbox is a static framework inside the xcframework, so the extension links it; nothing is embedded.
 project.save
 puts 'PacketTunnel target ready'

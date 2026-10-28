@@ -74,18 +74,25 @@ jobs:
           BOXPILOT_KEYSTORE_PASSWORD: ${{ secrets.BOXPILOT_KEYSTORE_PASSWORD }}
           BOXPILOT_KEY_ALIAS: ${{ secrets.BOXPILOT_KEY_ALIAS }}
           BOXPILOT_KEY_PASSWORD: ${{ secrets.BOXPILOT_KEY_PASSWORD }}
+        # One APK per ABI (most phones want arm64-v8a); a universal APK would carry three cores.
         run: |
-          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }}
-          flutter build apk --release --build-number=${{ github.run_number }}
+          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --build-number=${{ github.run_number }}
           mkdir -p dist
           version=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([^+]+).*/\1/')
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "build/app/outputs/flutter-apk/app-$abi-release.apk" "dist/BoxPilot-$version-android-$abi.apk"
           done
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/BoxPilot-$version-android-universal.apk"
+      # Only APKs signed with the release key are published; a debug-signed
+      # APK could never be updated by a later, properly signed one.
       - uses: actions/upload-artifact@v4
+        if: env.BOXPILOT_KEYSTORE_FILE != ''
         with:
           name: android
+          path: dist/*.apk
+      - uses: actions/upload-artifact@v4
+        if: env.BOXPILOT_KEYSTORE_FILE == ''
+        with:
+          name: android-debug-signed
           path: dist/*.apk
 
   ios:
@@ -124,7 +131,7 @@ jobs:
           ruby ios/scripts/add_packet_tunnel.rb
       - name: Build unsigned IPA
         run: |
-          flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/symbols --build-number=${{ github.run_number }}
           version=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([^+]+).*/\1/')
           mkdir -p dist/Payload
           cp -R build/ios/iphoneos/Runner.app dist/Payload/
@@ -141,6 +148,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: '{android,ios}'
           path: dist
           merge-multiple: true
       - uses: softprops/action-gh-release@v2

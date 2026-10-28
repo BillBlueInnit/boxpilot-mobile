@@ -16,26 +16,18 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
-import io.nekohasekai.libbox.CommandClient
-import io.nekohasekai.libbox.CommandClientHandler
-import io.nekohasekai.libbox.CommandClientOptions
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
-import io.nekohasekai.libbox.ConnectionEvents
 import io.nekohasekai.libbox.ConnectionOwner
 import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LocalDNSTransport
-import io.nekohasekai.libbox.LogIterator
 import io.nekohasekai.libbox.NeighborUpdateListener
 import io.nekohasekai.libbox.NetworkInterfaceIterator
-import io.nekohasekai.libbox.OutboundGroupItemIterator
-import io.nekohasekai.libbox.OutboundGroupIterator
 import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.PlatformUser
 import io.nekohasekai.libbox.ShellSession
-import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
@@ -53,8 +45,8 @@ import java.net.InetSocketAddress
 
 /**
  * Runs libbox as the device VPN. The engine (Rust, via Dart) decides what runs;
- * this service only hosts it: start or reload with a config, stop, report logs
- * and unexpected stops.
+ * this service only hosts it: start or reload with a config, stop, and report
+ * unexpected stops. The engine reads logs through the core's Clash API.
  */
 class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     companion object {
@@ -75,7 +67,6 @@ class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
     private var server: CommandServer? = null
-    private var logClient: CommandClient? = null
     private var tun: ParcelFileDescriptor? = null
     private var pendingStop: Job? = null
 
@@ -121,7 +112,6 @@ class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                     server = it
                 }
                 server.startOrReloadService(config, OverrideOptions())
-                if (logClient == null) startLogClient()
                 started = true
                 showNotification(connected = true)
                 refreshTile()
@@ -151,8 +141,6 @@ class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private fun teardown() {
         if (instance !== this) return
         started = false
-        runCatching { logClient?.disconnect() }
-        logClient = null
         runCatching { server?.closeService() }
         runCatching { server?.close() }
         server = null
@@ -213,53 +201,6 @@ class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
     private fun refreshTile() {
         TileService.requestListeningState(this, ComponentName(this, BoxTileService::class.java))
-    }
-
-    // ----------------------------------------------------------------- logs
-
-    private fun startLogClient() {
-        val options = CommandClientOptions().apply { addCommand(Libbox.CommandLog) }
-        val client = CommandClient(LogHandler(), options)
-        scope.launch {
-            // The command server needs a moment after start.
-            repeat(10) {
-                if (runCatching { client.connect() }.isSuccess) {
-                    logClient = client
-                    return@launch
-                }
-                delay(200)
-            }
-        }
-    }
-
-    private inner class LogHandler : CommandClientHandler {
-        override fun writeLogs(messageList: LogIterator) {
-            val lines = ArrayList<String>(messageList.len())
-            while (messageList.hasNext()) {
-                val entry = messageList.next()
-                lines += "${levelName(entry.level)} ${entry.message}"
-            }
-            if (lines.isNotEmpty()) BoxPilotApp.instance.core.emitLogs(lines)
-        }
-
-        private fun levelName(level: Int) = when (level) {
-            0, 1, 2 -> "ERROR"
-            3 -> "WARN"
-            4 -> "INFO"
-            5 -> "DEBUG"
-            else -> "TRACE"
-        }
-
-        override fun connected() {}
-        override fun disconnected(message: String?) {}
-        override fun setDefaultLogLevel(level: Int) {}
-        override fun clearLogs() {}
-        override fun writeStatus(message: StatusMessage?) {}
-        override fun writeGroups(message: OutboundGroupIterator?) {}
-        override fun writeOutbounds(message: OutboundGroupItemIterator?) {}
-        override fun initializeClashMode(modeList: StringIterator?, currentMode: String?) {}
-        override fun updateClashMode(newMode: String?) {}
-        override fun writeConnectionEvents(events: ConnectionEvents?) {}
     }
 
     // ------------------------------------------------------- command server

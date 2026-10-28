@@ -7,12 +7,6 @@ sealed class HostEvent {
   const HostEvent();
 }
 
-/// Log lines written by the embedded core.
-class HostLogs extends HostEvent {
-  const HostLogs(this.lines);
-  final List<String> lines;
-}
-
 /// The VPN stopped without the engine asking (revoked, another VPN, killed).
 class HostStopped extends HostEvent {
   const HostStopped(this.reason);
@@ -50,16 +44,19 @@ class CoreHost {
   static const _methods = MethodChannel('boxpilot/core');
   static const _events = EventChannel('boxpilot/core/events');
 
-  late final Stream<HostEvent> events = _events.receiveBroadcastStream().map((raw) {
-    final m = Map<String, dynamic>.from(raw as Map);
-    return switch (m['type']) {
-      'logs' => HostLogs(List<String>.from(m['lines'] as List)),
-      'stopped' => HostStopped(m['reason'] as String? ?? ''),
-      'toggle' => const HostToggle(),
-      'disconnect' => const HostDisconnect(),
-      _ => const HostLogs([]),
-    };
-  });
+  late final Stream<HostEvent> events = _events
+      .receiveBroadcastStream()
+      .map<HostEvent?>((raw) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        return switch (m['type']) {
+          'stopped' => HostStopped(m['reason'] as String? ?? ''),
+          'toggle' => const HostToggle(),
+          'disconnect' => const HostDisconnect(),
+          _ => null,
+        };
+      })
+      .where((e) => e != null)
+      .cast<HostEvent>();
 
   Future<HostInfo> info() async {
     final m = Map<String, dynamic>.from(await _methods.invokeMethod('info') as Map);

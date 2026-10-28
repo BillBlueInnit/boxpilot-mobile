@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use anyhow::{Context, Result, anyhow};
 use boxpilot_core::clash_api::{Connection, ConnectionsSnapshot};
 use boxpilot_core::config::CoreVersion;
+use boxpilot_core::geo::Origin;
 use boxpilot_core::engine::{CoreHost, CoreStatus, Engine, Event, NoticeKind, ResetScope};
 use boxpilot_core::model::{ProxyMode, Settings, Subscription};
 use boxpilot_core::rules::RuleProvider;
@@ -83,6 +84,12 @@ impl CoreHost for DartHost {
             }
         }
         .boxed()
+    }
+
+    /// libbox is built without naive (it links a whole browser network stack);
+    /// see scripts/build_libbox.sh.
+    fn supports(&self, protocol: &str) -> bool {
+        protocol != "naive"
     }
 }
 
@@ -224,16 +231,6 @@ pub fn restart() -> Result<()> {
 pub fn core_exited(reason: String) {
     if let Some(e) = ENGINE.get() {
         e.core_exited(reason);
-    }
-}
-
-/// Log lines written by libbox.
-#[flutter_rust_bridge::frb(sync)]
-pub fn push_core_logs(lines: Vec<String>) {
-    if let Some(e) = ENGINE.get() {
-        for line in lines {
-            e.push_core_log(&line);
-        }
     }
 }
 
@@ -411,6 +408,10 @@ pub struct Member {
     pub speed_testing: bool,
     /// ISO country code.
     pub country: Option<String>,
+    /// How the country is known: `name`, `ip` (server GeoIP) or `exit` (measured).
+    pub country_origin: Option<String>,
+    /// The server or exit address behind `ip` / `exit`.
+    pub country_ip: Option<String>,
 }
 
 pub struct Group {
@@ -438,13 +439,22 @@ pub fn groups() -> Vec<Group> {
                 .iter()
                 .map(|m| {
                     let speed = e.speed(&m.name);
+                    let country = e.country(&m.name);
+                    let (origin, ip) = match country.as_ref().map(|c| &c.origin) {
+                        Some(Origin::Name) => (Some("name"), None),
+                        Some(Origin::Ip(ip)) => (Some("ip"), Some(ip.to_string())),
+                        Some(Origin::Exit(ip)) => (Some("exit"), Some(ip.to_string())),
+                        None => (None, None),
+                    };
                     Member {
                         delay: encode_delay(e.delay(&m.name)),
                         real_delay: encode_delay(e.real_delay(&m.name)),
                         testing: e.is_testing(&m.name) || e.is_real_testing(&m.name),
                         speed: speed.and_then(|s| s.bytes_per_sec).map(|b| b as i64),
                         speed_testing: e.is_speed_testing(&m.name),
-                        country: e.country(&m.name).map(|c| c.code),
+                        country: country.map(|c| c.code),
+                        country_origin: origin.map(String::from),
+                        country_ip: ip,
                         name: m.name.clone(),
                         protocol: m.protocol.clone(),
                         is_group: m.is_group,

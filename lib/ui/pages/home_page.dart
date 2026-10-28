@@ -271,6 +271,8 @@ class _HomePageState extends State<HomePage> {
                 NodeName(
                   name: outboundLabel(node.name),
                   country: node.country,
+                  origin: node.countryOrigin,
+                  ip: node.countryIp,
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                 ),
                 if (routeText.isNotEmpty)

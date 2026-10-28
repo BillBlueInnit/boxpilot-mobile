@@ -1,8 +1,10 @@
+import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_state.dart';
 import '../../core/format.dart';
+import '../../core/models.dart' show autoStrategies;
 import '../../i18n/i18n.dart';
 import '../../src/rust/api/engine.dart' as api;
 import '../adaptive.dart';
@@ -176,9 +178,51 @@ class _ProxiesPageState extends State<ProxiesPage> {
       ),
     );
     return SliverGroupedList(
-      header: header,
+      header: g.name == 'Auto'
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [header, _autoControls(context)])
+          : header,
       itemCount: members.length,
       itemBuilder: (context, i) => _member(context, g, members[i]),
+    );
+  }
+
+  /// How the Auto group picks its node and which region it keeps to, as on the
+  /// desktop's Proxies page.
+  Widget _autoControls(BuildContext context) {
+    final strategy = app.setting('auto_strategy', 'quickest');
+    final region = app.setting('auto_region', '');
+    final regions = <String, String>{
+      '': tr('auto.region_any'),
+      for (final c in app.countryCounts()) c.code: '${flagEmoji(c.code)} ${c.code}  (${c.nodes})',
+    };
+    if (!regions.containsKey(region)) regions[region] = region;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isCupertino ? 36 : 32, 0, isCupertino ? 28 : 24, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MenuChip(
+                icon: isCupertino ? CupertinoIcons.slider_horizontal_3 : Icons.tune,
+                value: strategy,
+                options: {for (final s in autoStrategies) s: tr('auto.$s')},
+                onSelected: (v) => app.updateSettings({'auto_strategy': v}),
+              ),
+              _MenuChip(
+                icon: isCupertino ? CupertinoIcons.globe : Icons.public,
+                value: region,
+                options: regions,
+                onSelected: (v) => app.updateSettings({'auto_region': v}),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(tr('auto.${strategy}_hint'), style: TextStyle(fontSize: 12, color: StatusColors.muted(context))),
+        ],
+      ),
     );
   }
 
@@ -210,6 +254,8 @@ class _ProxiesPageState extends State<ProxiesPage> {
                 NodeName(
                   name: outboundLabel(m.name),
                   country: m.country,
+                  origin: m.countryOrigin,
+                  ip: m.countryIp,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
@@ -242,6 +288,73 @@ class _ProxiesPageState extends State<ProxiesPage> {
       onTap: onTap,
       onLongPress: m.isGroup || m.name == 'direct' ? null : () => app.speedTest([m.name]),
       child: content,
+    );
+  }
+}
+
+/// A compact pull-down: native `UIMenu` on iOS 26, a Material menu on Android.
+class _MenuChip extends StatelessWidget {
+  const _MenuChip({required this.icon, required this.value, required this.options, required this.onSelected});
+
+  final IconData icon;
+  final String value;
+  final Map<String, String> options;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = options[value] ?? value;
+    final Widget chip;
+    if (isCupertino) {
+      final tint = CupertinoTheme.of(context).primaryColor;
+      chip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: CupertinoColors.tertiarySystemFill.resolveFrom(context),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: tint),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(fontSize: 14, color: tint, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(width: 4),
+            Icon(CupertinoIcons.chevron_down, size: 11, color: tint),
+          ],
+        ),
+      );
+    } else {
+      final scheme = Theme.of(context).colorScheme;
+      chip = Container(
+        height: 32,
+        padding: const EdgeInsets.only(left: 8, right: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Icon(Icons.arrow_drop_down, size: 20, color: scheme.onSurfaceVariant),
+          ],
+        ),
+      );
+    }
+    final keys = options.keys.toList();
+    return AdaptivePopupMenuButton.widget<String>(
+      items: [for (final k in keys) AdaptivePopupMenuItem<String>(label: options[k]!, value: k, selected: k == value)],
+      onSelected: (i, item) {
+        final picked = item.value;
+        if (picked != null && picked != value) onSelected(picked);
+      },
+      child: chip,
     );
   }
 }

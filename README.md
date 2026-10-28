@@ -82,7 +82,7 @@ Other scripts:
 ## Releases
 
 `.github/workflows/build.yml` runs the analyzer and tests, then builds:
-- APKs (per ABI and universal), signed with the release key when the `BOXPILOT_KEYSTORE_*`
+- APKs (one per ABI; most phones want arm64-v8a), signed with the release key when the `BOXPILOT_KEYSTORE_*`
   secrets are set;
 - an unsigned IPA. Re-sign it with a provisioning profile that has the Network Extension
   (packet tunnel) and App Group capabilities. That requires a paid Apple developer account,

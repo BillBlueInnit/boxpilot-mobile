@@ -52,15 +52,19 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // R8: the app's own code is small; most of the dex is library code.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
     packaging {
         jniLibs {
-            // libbox and the Rust bridge are loaded straight from the APK.
-            useLegacyPackaging = false
+            // Compressed native libraries: the APK download is well under half the
+            // size (libbox alone shrinks from 60 to 22 MB); Android unpacks them once
+            // at install.
+            useLegacyPackaging = true
         }
     }
 }

@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -744228908;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -92377586;
 
 // Section: executor
 
@@ -616,38 +616,6 @@ fn wire__crate__api__engine__preview_config_impl(
                     std::result::Result::Ok(output_ok)
                 })(),
             )
-        },
-    )
-}
-fn wire__crate__api__engine__push_core_logs_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "push_core_logs",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_lines = <Vec<String>>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let output_ok = Ok::<_, ()>({
-                    crate::api::engine::push_core_logs(api_lines);
-                })?;
-                std::result::Result::Ok(output_ok)
-            })())
         },
     )
 }
@@ -1868,6 +1836,8 @@ impl SseDecode for crate::api::engine::Member {
         let mut var_speed = <Option<i64>>::sse_decode(deserializer);
         let mut var_speedTesting = <bool>::sse_decode(deserializer);
         let mut var_country = <Option<String>>::sse_decode(deserializer);
+        let mut var_countryOrigin = <Option<String>>::sse_decode(deserializer);
+        let mut var_countryIp = <Option<String>>::sse_decode(deserializer);
         return crate::api::engine::Member {
             name: var_name,
             protocol: var_protocol,
@@ -1878,6 +1848,8 @@ impl SseDecode for crate::api::engine::Member {
             speed: var_speed,
             speed_testing: var_speedTesting,
             country: var_country,
+            country_origin: var_countryOrigin,
+            country_ip: var_countryIp,
         };
     }
 }
@@ -2078,9 +2050,9 @@ fn pde_ffi_dispatcher_primary_impl(
         9 => wire__crate__api__engine__events_impl(port, ptr, rust_vec_len, data_len),
         11 => wire__crate__api__engine__import_acl_ini_impl(port, ptr, rust_vec_len, data_len),
         12 => wire__crate__api__engine__init_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__engine__reset_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__engine__save_subscription_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__engine__start_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__engine__reset_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__engine__save_subscription_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__engine__start_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2103,33 +2075,32 @@ fn pde_ffi_dispatcher_sync_impl(
         15 => wire__crate__api__engine__move_subscription_impl(ptr, rust_vec_len, data_len),
         16 => wire__crate__api__engine__nodes_impl(ptr, rust_vec_len, data_len),
         17 => wire__crate__api__engine__preview_config_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__engine__push_core_logs_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__engine__refresh_proxies_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__engine__remove_rule_providers_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__engine__remove_subscriptions_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__engine__restart_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__engine__rule_providers_json_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__engine__save_rule_provider_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__engine__select_proxy_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__engine__set_mode_impl(ptr, rust_vec_len, data_len),
-        29 => {
+        18 => wire__crate__api__engine__refresh_proxies_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__engine__remove_rule_providers_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__engine__remove_subscriptions_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__engine__restart_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__engine__rule_providers_json_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__engine__save_rule_provider_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__engine__select_proxy_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__engine__set_mode_impl(ptr, rust_vec_len, data_len),
+        28 => {
             wire__crate__api__engine__set_rule_providers_enabled_impl(ptr, rust_vec_len, data_len)
         }
-        30 => wire__crate__api__engine__set_subscriptions_enabled_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__engine__settings_json_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__engine__speed_test_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__engine__status_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__engine__stop_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__engine__subscriptions_json_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__engine__test_delays_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__engine__test_real_latency_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__engine__total_nodes_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__engine__traffic_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__engine__update_all_subscriptions_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__engine__update_rule_providers_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__engine__update_settings_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__engine__update_subscriptions_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__engine__updating_subscriptions_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__engine__set_subscriptions_enabled_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__engine__settings_json_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__engine__speed_test_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__engine__status_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__engine__stop_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__engine__subscriptions_json_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__engine__test_delays_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__engine__test_real_latency_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__engine__total_nodes_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__engine__traffic_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__engine__update_all_subscriptions_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__engine__update_rule_providers_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__engine__update_settings_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__engine__update_subscriptions_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__engine__updating_subscriptions_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2285,6 +2256,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::engine::Member {
             self.speed.into_into_dart().into_dart(),
             self.speed_testing.into_into_dart().into_dart(),
             self.country.into_into_dart().into_dart(),
+            self.country_origin.into_into_dart().into_dart(),
+            self.country_ip.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2656,6 +2629,8 @@ impl SseEncode for crate::api::engine::Member {
         <Option<i64>>::sse_encode(self.speed, serializer);
         <bool>::sse_encode(self.speed_testing, serializer);
         <Option<String>>::sse_encode(self.country, serializer);
+        <Option<String>>::sse_encode(self.country_origin, serializer);
+        <Option<String>>::sse_encode(self.country_ip, serializer);
     }
 }
 

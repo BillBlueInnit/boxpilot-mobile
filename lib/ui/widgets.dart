@@ -332,21 +332,73 @@ class Stat extends StatelessWidget {
   }
 }
 
-/// A country flag followed by a node name.
+/// A node name after its country badge (flag and code, like the desktop's
+/// code badge). On Android a long press tells where the country came from.
 class NodeName extends StatelessWidget {
-  const NodeName({super.key, required this.name, this.country, this.style, this.maxLines = 1});
+  const NodeName({super.key, required this.name, this.country, this.origin, this.ip, this.style, this.maxLines = 1});
 
   final String name;
   final String? country;
+
+  /// `name`, `ip` or `exit` (see the bridge's `Member`).
+  final String? origin;
+  final String? ip;
   final TextStyle? style;
   final int maxLines;
 
   @override
   Widget build(BuildContext context) {
-    final flag = country == null ? '' : flagEmoji(country!);
-    // Many providers already start the name with a flag.
-    final hasFlag = name.runes.isNotEmpty && name.runes.first >= 0x1F1E6 && name.runes.first <= 0x1F1FF;
-    final text = flag.isEmpty || hasFlag ? name : '$flag  $name';
-    return Text(text, style: style, maxLines: maxLines, overflow: TextOverflow.ellipsis);
+    final text = Text(name, style: style, maxLines: maxLines, overflow: TextOverflow.ellipsis);
+    if (country == null) return text;
+    return Row(
+      children: [
+        CountryBadge(code: country!, origin: origin, ip: ip),
+        const SizedBox(width: 8),
+        Flexible(child: text),
+      ],
+    );
+  }
+}
+
+class CountryBadge extends StatelessWidget {
+  const CountryBadge({super.key, required this.code, this.origin, this.ip});
+
+  final String code;
+  final String? origin;
+  final String? ip;
+
+  String? get _source => switch (origin) {
+    'name' => tr('geo.from_name'),
+    'ip' => tr('geo.from_ip', [ip]),
+    'exit' => tr('geo.from_exit', [ip]),
+    _ => null,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = StatusColors.muted(context);
+    final fill = isCupertino
+        ? CupertinoColors.tertiarySystemFill.resolveFrom(context)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(5)),
+      child: Text(
+        '${flagEmoji(code)} $code',
+        style: TextStyle(
+          fontSize: 11,
+          height: 1.3,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+          color: muted,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+    final source = _source;
+    final labelled = Semantics(label: source == null ? code : '$code, $source', child: badge);
+    // iOS has no tooltips; Android shows the source on long press.
+    if (isCupertino || source == null) return labelled;
+    return Tooltip(message: source, triggerMode: TooltipTriggerMode.longPress, child: labelled);
   }
 }

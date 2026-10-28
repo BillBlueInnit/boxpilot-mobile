@@ -11,7 +11,7 @@ part 'engine.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `callbacks`, `connection_info`, `encode_delay`, `engine`, `init_logging`, `rt`, `tokio_blocking`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Callbacks`, `DartHost`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `start`, `stop`, `version`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `start`, `stop`, `supports`, `version`
 
 /// Creates the engine (once per process) and attaches this isolate to it.
 /// `root` is the data folder; `core_version` the embedded libbox version.
@@ -41,9 +41,6 @@ void restart() => RustLib.instance.api.crateApiEngineRestart();
 
 /// The platform's core stopped on its own (VPN revoked, service killed).
 void coreExited({required String reason}) => RustLib.instance.api.crateApiEngineCoreExited(reason: reason);
-
-/// Log lines written by libbox.
-void pushCoreLogs({required List<String> lines}) => RustLib.instance.api.crateApiEnginePushCoreLogs(lines: lines);
 
 String coreVersion() => RustLib.instance.api.crateApiEngineCoreVersion();
 
@@ -324,6 +321,12 @@ class Member {
   /// ISO country code.
   final String? country;
 
+  /// How the country is known: `name`, `ip` (server GeoIP) or `exit` (measured).
+  final String? countryOrigin;
+
+  /// The server or exit address behind `ip` / `exit`.
+  final String? countryIp;
+
   const Member({
     required this.name,
     required this.protocol,
@@ -334,6 +337,8 @@ class Member {
     this.speed,
     required this.speedTesting,
     this.country,
+    this.countryOrigin,
+    this.countryIp,
   });
 
   @override
@@ -346,7 +351,9 @@ class Member {
       testing.hashCode ^
       speed.hashCode ^
       speedTesting.hashCode ^
-      country.hashCode;
+      country.hashCode ^
+      countryOrigin.hashCode ^
+      countryIp.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -361,7 +368,9 @@ class Member {
           testing == other.testing &&
           speed == other.speed &&
           speedTesting == other.speedTesting &&
-          country == other.country;
+          country == other.country &&
+          countryOrigin == other.countryOrigin &&
+          countryIp == other.countryIp;
 }
 
 class NodeInfo {

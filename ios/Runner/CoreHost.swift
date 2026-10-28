@@ -1,14 +1,14 @@
 import Flutter
 import Foundation
-import Libbox
 import NetworkExtension
 
 /// The Dart side's handle on the embedded core, the iOS counterpart of Android's
 /// `CoreChannel`. sing-box runs in the PacketTunnel extension; this class starts,
-/// reloads and stops it, and forwards its logs.
+/// reloads and stops it. The engine reads logs through the core's Clash API, so
+/// the app itself does not link libbox.
 ///
 /// Methods (`boxpilot/core`): `info`, `prepare`, `start(config)`, `stop`.
-/// Events (`boxpilot/core/events`): `{type: logs, lines}`, `{type: stopped, reason}`.
+/// Events (`boxpilot/core/events`): `{type: stopped, reason}`.
 final class CoreHost: NSObject, FlutterStreamHandler {
     static let tunnelBundleId = "io.github.billblueinnit.boxpilot.PacketTunnel"
 
@@ -20,8 +20,6 @@ final class CoreHost: NSObject, FlutterStreamHandler {
     private var statusObserver: NSObjectProtocol?
     private var pendingStop: DispatchWorkItem?
     private var stopRequested = false
-    private var logClient: LibboxCommandClient?
-    private lazy var logHandler = LogHandler(self)
 
     init(messenger: FlutterBinaryMessenger) {
         super.init()
@@ -30,7 +28,6 @@ final class CoreHost: NSObject, FlutterStreamHandler {
             self?.handle(call, result)
         }
         FlutterEventChannel(name: "boxpilot/core/events", binaryMessenger: messenger).setStreamHandler(self)
-        setupLibbox()
         Task { _ = try? await loadManager() }
     }
 
@@ -56,7 +53,7 @@ final class CoreHost: NSObject, FlutterStreamHandler {
             case "info":
                 let paths = AppPaths()
                 result([
-                    "coreVersion": LibboxVersion(),
+                    "coreVersion": Bundle.main.object(forInfoDictionaryKey: "BoxPilotCoreVersion") as? String ?? "",
                     "dataDir": paths.data.path,
                     "running": manager?.connection.status == .connected,
                 ])
@@ -165,7 +162,6 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         while Date() < deadline {
             switch connection.status {
             case .connected:
-                connectLogs()
                 return ""
             case .disconnected, .invalid:
                 // The extension failed to start; iOS 16 keeps the reason.
@@ -196,7 +192,6 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.stopRequested = true
-            self.disconnectLogs()
             self.manager?.connection.stopVPNTunnel()
         }
         pendingStop = work
@@ -210,10 +205,7 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         ) { [weak self] _ in
             guard let self else { return }
             switch manager.connection.status {
-            case .connected:
-                self.connectLogs()
             case .disconnected:
-                self.disconnectLogs()
                 if !self.stopRequested && self.pendingStop == nil {
                     // Turned off in Settings, by another VPN, or the extension ended.
                     self.emit(["type": "stopped", "reason": "the VPN was turned off"])
@@ -224,43 +216,6 @@ final class CoreHost: NSObject, FlutterStreamHandler {
             }
         }
     }
-
-    // MARK: Logs
-
-    private func setupLibbox() {
-        let paths = AppPaths()
-        let options = LibboxSetupOptions()
-        options.basePath = paths.group.path
-        options.workingPath = paths.group.appendingPathComponent("core", isDirectory: true).path
-        options.tempPath = FileManager.default.temporaryDirectory.path
-        options.crashReportSource = "Application"
-        var error: NSError?
-        LibboxSetup(options, &error)
-    }
-
-    private func connectLogs() {
-        guard logClient == nil else { return }
-        let options = LibboxCommandClientOptions()
-        options.addCommand(LibboxCommandLog)
-        guard let client = LibboxNewCommandClient(logHandler, options) else { return }
-        logClient = client
-        DispatchQueue.global().async {
-            for _ in 0 ..< 10 {
-                if (try? client.connect()) != nil { return }
-                Thread.sleep(forTimeInterval: 0.2)
-            }
-        }
-    }
-
-    private func disconnectLogs() {
-        try? logClient?.disconnect()
-        logClient = nil
-    }
-
-    fileprivate func forward(_ lines: [String]) {
-        if !lines.isEmpty { emit(["type": "logs", "lines": lines]) }
-    }
-}
 
 /// The App Group container the app shares with the extension.
 struct AppPaths {
@@ -276,43 +231,4 @@ struct AppPaths {
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
     }
-}
-
-private final class LogHandler: NSObject, LibboxCommandClientHandlerProtocol {
-    private weak var host: CoreHost?
-
-    init(_ host: CoreHost) {
-        self.host = host
-    }
-
-    func writeLogs(_ messageList: (any LibboxLogIteratorProtocol)?) {
-        guard let messageList else { return }
-        var lines: [String] = []
-        while messageList.hasNext() {
-            guard let entry = messageList.next() else { break }
-            lines.append("\(Self.level(entry.level)) \(entry.message)")
-        }
-        host?.forward(lines)
-    }
-
-    private static func level(_ value: Int32) -> String {
-        switch value {
-        case 0 ... 2: "ERROR"
-        case 3: "WARN"
-        case 4: "INFO"
-        case 5: "DEBUG"
-        default: "TRACE"
-        }
-    }
-
-    func connected() {}
-    func disconnected(_: String?) {}
-    func setDefaultLogLevel(_: Int32) {}
-    func clearLogs() {}
-    func writeStatus(_: LibboxStatusMessage?) {}
-    func writeGroups(_: (any LibboxOutboundGroupIteratorProtocol)?) {}
-    func writeOutbounds(_: (any LibboxOutboundGroupItemIteratorProtocol)?) {}
-    func initializeClashMode(_: (any LibboxStringIteratorProtocol)?, currentMode _: String?) {}
-    func updateClashMode(_: String?) {}
-    func write(_: LibboxConnectionEvents?) {}
 }

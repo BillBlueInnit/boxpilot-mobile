@@ -192,8 +192,6 @@ class AppState extends ChangeNotifier {
 
   void _onHostEvent(HostEvent e) {
     switch (e) {
-      case HostLogs(:final lines):
-        if (lines.isNotEmpty) api.pushCoreLogs(lines: lines);
       case HostStopped(:final reason):
         api.coreExited(reason: reason);
       case HostToggle():

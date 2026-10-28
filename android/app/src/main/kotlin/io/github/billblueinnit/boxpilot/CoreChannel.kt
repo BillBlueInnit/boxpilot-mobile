@@ -21,7 +21,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The Dart side's handle on the embedded core.
  *
  * Methods (`boxpilot/core`): `info`, `prepare`, `start(config)`, `stop`.
- * Events (`boxpilot/core/events`): `{type: logs, lines}`, `{type: stopped, reason}`,
+ * Events (`boxpilot/core/events`): `{type: stopped, reason}`,
  * `{type: toggle}` (quick-settings tile), `{type: disconnect}` (notification).
  */
 class CoreChannel(private val context: Context, messenger: BinaryMessenger) : MethodChannel.MethodCallHandler {
@@ -113,8 +113,6 @@ class CoreChannel(private val context: Context, messenger: BinaryMessenger) : Me
         }
         return withTimeoutOrNull(30_000) { answer.await() } ?: "the VPN service did not start"
     }
-
-    fun emitLogs(lines: List<String>) = emit(mapOf("type" to "logs", "lines" to lines))
 
     fun emitStopped(reason: String) = emit(mapOf("type" to "stopped", "reason" to reason))
 

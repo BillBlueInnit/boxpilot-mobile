@@ -27,7 +27,9 @@ if ! command -v gobind >/dev/null; then
              "github.com/sagernet/gomobile/cmd/gobind@$GOMOBILE_VERSION"
 fi
 
-tags="with_gvisor,with_quic,with_wireguard,with_utls,with_naive_outbound,with_clash_api,badlinkname,tfogo_checklinkname0"
+# The official apps' tags minus naive (it statically links Chromium's network
+# stack, about 11 MB per ABI); the engine leaves naive nodes out on mobile.
+tags="with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,badlinkname,tfogo_checklinkname0"
 ldflags="-X github.com/sagernet/sing-box/constant.Version=${SING_BOX_VERSION#v} -X runtime.godebugDefault=multipathtcp=0,tlssha1=1 -checklinkname=0 -s -w -buildid="
 
 cd "$src"
@@ -47,6 +49,7 @@ case "$target" in
       -trimpath -buildvcs=false -ldflags "$ldflags" -tags "$tags,with_dhcp,grpcnotrace" ./experimental/libbox
     rm -rf "$root/ios/Libbox.xcframework"
     mv Libbox.xcframework "$root/ios/Libbox.xcframework"
+    /usr/libexec/PlistBuddy -c "Set :BoxPilotCoreVersion ${SING_BOX_VERSION#v}" "$root/ios/Runner/Info.plist"
     echo "Libbox.xcframework -> ios/"
     ;;
   *)
