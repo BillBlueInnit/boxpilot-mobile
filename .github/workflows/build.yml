@@ -235,6 +235,8 @@ jobs:
           print(phones[0]["udid"])')
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
+          # The first keyboard would otherwise open the swipe-typing tip over the screenshots.
+          xcrun simctl spawn "$udid" defaults write com.apple.Preferences DidShowContinuousPathIntroduction -bool true || true
           xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
           echo "SIM=$udid" >> "$GITHUB_ENV"
       - run: bash scripts/ci_ui_test.sh ios "$SIM" screenshots/ios

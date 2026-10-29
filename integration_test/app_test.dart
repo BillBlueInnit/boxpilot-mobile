@@ -7,6 +7,7 @@
 //
 //   --dart-define=BOXPILOT_TEST_NODE=ss://… (a working node; Android only)
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:boxpilot/core/app_state.dart';
@@ -33,7 +34,12 @@ Future<void> wait(WidgetTester t, Duration d) async {
 /// Asks the CI script for a screenshot of the current screen and waits for it.
 Future<void> shot(WidgetTester t, String name) async {
   await wait(t, const Duration(milliseconds: 1200));
-  final dir = Directory('${Directory.systemTemp.path}/boxpilot-shots');
+  // Where the script looks: `run-as … cache/` on Android, the app's tmp on iOS.
+  final dir = Directory(
+    Platform.isAndroid
+        ? '/data/data/io.github.billblueinnit.boxpilot/cache/boxpilot-shots'
+        : '${Directory.systemTemp.path}/boxpilot-shots',
+  );
   await dir.create(recursive: true);
   final request = File('${dir.path}/$name');
   await request.writeAsString(name, flush: true);
@@ -49,11 +55,21 @@ Future<void> go(WidgetTester t, String path) async {
   await wait(t, const Duration(milliseconds: 800));
 }
 
-Future<void> scrollToEnd(WidgetTester t) async {
-  final scrollable = find.byType(Scrollable).hitTestable().first;
-  for (var i = 0; i < 4; i++) {
-    await t.fling(scrollable, const Offset(0, -2500), 4000);
-    await wait(t, const Duration(milliseconds: 500));
+/// Scrolls the visible page to its end (or back to the top). Through its
+/// position, not a fling: a drag that starts on a native iOS control goes to
+/// that control instead.
+Future<void> scrollToEnd(WidgetTester t, {bool top = false}) async {
+  final page = find
+      .byType(Scrollable)
+      .hitTestable()
+      .evaluate()
+      .map((e) => (e as StatefulElement).state as ScrollableState)
+      .firstWhere((s) => s.position.axis == Axis.vertical);
+  for (var i = 0; i < 3; i++) {
+    final position = page.position;
+    final target = top ? position.minScrollExtent : position.maxScrollExtent;
+    unawaited(position.animateTo(target, duration: const Duration(milliseconds: 600), curve: Curves.easeOut));
+    await wait(t, const Duration(milliseconds: 800));
   }
 }
 
@@ -116,6 +132,7 @@ void main() {
     await go(t, '/home');
     await shot(t, '10_home_dark');
     await go(t, '/settings');
+    await scrollToEnd(t, top: true);
     await shot(t, '11_settings_dark');
     state.updateSettings({'theme': 'light'});
 

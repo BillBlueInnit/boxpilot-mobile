@@ -87,7 +87,12 @@ class _BoxPilotAppState extends State<BoxPilotApp> {
       _ when pair != null => CupertinoDynamicColor.withBrightness(color: pair.$2, darkColor: pair.$1),
       _ => CupertinoColors.systemBlue,
     };
-    return CupertinoThemeData(brightness: brightness, primaryColor: primary);
+    // Grouped background: the pages are inset grouped lists and cards.
+    return CupertinoThemeData(
+      brightness: brightness,
+      primaryColor: primary,
+      scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
+    );
   }
 
   ThemeMode get _themeMode => switch (app.setting('theme', 'system')) {

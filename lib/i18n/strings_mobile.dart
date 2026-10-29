@@ -41,6 +41,7 @@ const Map<String, List<String>> mobileStrings = {
     'Разрешить устройствам в этой сети Wi-Fi или точке доступа использовать порт {0}.',
   ],
   'set.accent_dynamic': ['Wallpaper colours', '壁纸取色', '桌布取色', 'Цвета обоев'],
+  'accent.ios_default': ['Default', '默认', '預設', 'По умолчанию'],
   'set.accent_desc_mobile': [
     'System follows your wallpaper colours (Material You).',
     '「系统」跟随壁纸配色（Material You）。',

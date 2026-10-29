@@ -492,7 +492,7 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
         if (_isNew)
           Padding(
             padding: EdgeInsets.fromLTRB(isCupertino ? 20 : 16, 16, isCupertino ? 20 : 16, 4),
-            child: AdaptiveSegmentedControl(
+            child: Segmented(
               labels: [tr('editor.remote'), tr('editor.paste')],
               selectedIndex: _remote ? 0 : 1,
               onValueChanged: (i) => setState(() => _remote = i == 0),

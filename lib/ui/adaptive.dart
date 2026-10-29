@@ -8,6 +8,7 @@ import 'dart:ui';
 
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../i18n/i18n.dart';
@@ -76,20 +77,27 @@ class _AppPageState extends State<AppPage> {
   late final ScrollController _controller = widget.controller ?? ScrollController();
   bool _titleInBar = false;
 
+  /// How far the scroll edge band under the iOS toolbar has faded in.
+  final _edge = ValueNotifier<double>(0);
+
   @override
   void initState() {
     super.initState();
-    if (isCupertino && widget.largeTitle) _controller.addListener(_onScroll);
+    if (isCupertino) _controller.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     if (widget.controller == null) _controller.dispose();
+    _edge.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    final inBar = _controller.hasClients && _controller.offset > 36;
+    final offset = _controller.hasClients ? _controller.offset : 0.0;
+    _edge.value = (offset / 16).clamp(0.0, 1.0);
+    if (!widget.largeTitle) return;
+    final inBar = offset > 36;
     if (inBar != _titleInBar) setState(() => _titleInBar = inBar);
   }
 
@@ -142,6 +150,9 @@ class _AppPageState extends State<AppPage> {
     final showLarge = widget.largeTitle;
     final barTitle = !showLarge || _titleInBar ? widget.title : '';
     return AdaptiveScaffold(
+      // Each page draws its own toolbar, so a sheet or a pushed page covers it.
+      // The shared one above the navigator would sit on top of every sheet.
+      useFixedToolbar: false,
       appBar: AdaptiveAppBar(
         title: barTitle,
         useNativeToolbar: true,
@@ -168,29 +179,77 @@ class _AppPageState extends State<AppPage> {
         ],
       ),
       floatingActionButton: widget.floatingActionButton,
-      body: CustomScrollView(
-        controller: _controller,
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        slivers: [
-          SliverSafeArea(
-            bottom: false,
-            sliver: SliverToBoxAdapter(
-              child: showLarge
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                      child: AnimatedOpacity(
-                        opacity: _titleInBar ? 0 : 1,
-                        duration: const Duration(milliseconds: 150),
-                        child: Text(widget.title, style: CupertinoTheme.of(context).textTheme.navLargeTitleTextStyle),
-                      ),
-                    )
-                  : const SizedBox(height: 8),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _controller,
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              SliverSafeArea(
+                bottom: false,
+                sliver: SliverToBoxAdapter(
+                  child: showLarge
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                          child: AnimatedOpacity(
+                            opacity: _titleInBar ? 0 : 1,
+                            duration: const Duration(milliseconds: 150),
+                            child: Text(
+                              widget.title,
+                              style: CupertinoTheme.of(context).textTheme.navLargeTitleTextStyle,
+                            ),
+                          ),
+                        )
+                      : const SizedBox(height: 8),
+                ),
+              ),
+              if (widget.onRefresh != null) CupertinoSliverRefreshControl(onRefresh: widget.onRefresh),
+              ...widget.slivers,
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            ],
+          ),
+          _ScrollEdge(opacity: _edge),
+        ],
+      ),
+    );
+  }
+}
+
+/// The iOS 26 scroll edge effect under the toolbar: content scrolling up fades
+/// into the page background instead of running into the bar's title and
+/// buttons. UIKit draws it for its own scroll views only, so Flutter content
+/// needs its own.
+class _ScrollEdge extends StatelessWidget {
+  const _ScrollEdge({required this.opacity});
+
+  final ValueListenable<double> opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    // The scaffold has added the toolbar to the top padding.
+    final top = MediaQuery.paddingOf(context).top;
+    final height = top + 18;
+    final background = CupertinoTheme.of(context).scaffoldBackgroundColor;
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: height,
+      child: IgnorePointer(
+        child: ValueListenableBuilder<double>(
+          valueListenable: opacity,
+          builder: (context, value, child) => Opacity(opacity: value, child: child),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0, (top - 10) / height, 1],
+                colors: [background, background.withValues(alpha: 0.9), background.withValues(alpha: 0)],
+              ),
             ),
           ),
-          if (widget.onRefresh != null) CupertinoSliverRefreshControl(onRefresh: widget.onRefresh),
-          ...widget.slivers,
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
-        ],
+        ),
       ),
     );
   }
@@ -224,9 +283,24 @@ class SectionBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isCupertino) {
+      // UIKit's grouped header and footer: footnote size, secondary label
+      // colour, lined up with the rows' text (Flutter's inset grouped header
+      // is a 20 pt bold title and its footer body-sized).
+      final style = CupertinoTheme.of(context).textTheme.textStyle
+          .copyWith(fontSize: 13, height: 1.3, color: CupertinoColors.secondaryLabel.resolveFrom(context));
       return CupertinoListSection.insetGrouped(
-        header: header == null ? null : Text(header!),
-        footer: footer == null ? null : Text(footer!),
+        header: header == null
+            ? null
+            : Padding(
+                padding: const EdgeInsetsDirectional.only(start: 16, end: 16),
+                child: Text(header!, style: style),
+              ),
+        footer: footer == null
+            ? null
+            : Padding(
+                padding: const EdgeInsetsDirectional.only(start: 16, end: 16, top: 6),
+                child: Text(footer!, style: style),
+              ),
         hasLeading: false,
         children: children.isEmpty ? [const SizedBox.shrink()] : children,
       );
@@ -298,7 +372,13 @@ class NavTile extends StatelessWidget {
         leading: icon == null ? null : _IosIconBadge(icon: icon!.cupertino, color: iconColor),
         title: Text(title, style: destructive ? TextStyle(color: red) : null),
         subtitle: subtitle == null ? null : Text(subtitle!, maxLines: 2),
-        additionalInfo: value == null ? null : Text(value!, maxLines: 1, overflow: TextOverflow.ellipsis),
+        // A long value gives way to the title, as in Settings.
+        additionalInfo: value == null
+            ? null
+            : ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.42),
+                child: Text(value!, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
         trailing: trailing ?? (chevron && onTap != null ? const CupertinoListTileChevron() : null),
         onTap: onTap,
       );
@@ -365,7 +445,9 @@ class SwitchTile extends StatelessWidget {
         leading: icon == null ? null : _IosIconBadge(icon: icon!.cupertino, color: iconColor),
         title: Text(title),
         subtitle: subtitle == null ? null : Text(subtitle!, maxLines: 3),
-        trailing: AdaptiveSwitch(value: value, onChanged: onChanged),
+        trailing: inSheet(context)
+            ? CupertinoSwitch(value: value, onChanged: onChanged)
+            : AdaptiveSwitch(value: value, onChanged: onChanged),
         onTap: onChanged == null ? null : () => onChanged!(!value),
       );
     }
@@ -803,6 +885,43 @@ Future<T?> openForm<T>(BuildContext context, WidgetBuilder builder) {
     );
   }
   return Navigator.of(context).push<T>(MaterialPageRoute(fullscreenDialog: true, builder: builder));
+}
+
+/// Whether [context] is inside a form sheet opened with [openForm].
+///
+/// Native iOS controls (platform views) are not used in sheets: under the
+/// sheet's clip and transition the Flutter content around them stopped being
+/// drawn. The Flutter-drawn Cupertino controls take their place there.
+bool inSheet(BuildContext context) => _SheetScroll.maybeOf(context) != null;
+
+/// A segmented control: native on iOS 26 pages, Flutter-drawn in sheets
+/// (see [inSheet]), the Material one on Android.
+class Segmented extends StatelessWidget {
+  const Segmented({super.key, required this.labels, required this.selectedIndex, required this.onValueChanged});
+
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onValueChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isCupertino && inSheet(context)) {
+      return SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<int>(
+          groupValue: selectedIndex,
+          onValueChanged: (i) {
+            if (i != null) onValueChanged(i);
+          },
+          children: {
+            for (var i = 0; i < labels.length; i++)
+              i: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(labels[i])),
+          },
+        ),
+      );
+    }
+    return AdaptiveSegmentedControl(labels: labels, selectedIndex: selectedIndex, onValueChanged: onValueChanged);
+  }
 }
 
 /// The sheet's scroll controller, so dragging the form down dismisses the sheet.

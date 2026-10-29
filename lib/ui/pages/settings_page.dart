@@ -83,7 +83,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   iconColor: CupertinoColors.systemPink,
                   value: app.setting('accent', 'system'),
                   options: {
-                    'system': isCupertino ? tr('accent.system') : tr('set.accent_dynamic'),
+                    'system': isCupertino ? tr('accent.ios_default') : tr('set.accent_dynamic'),
                     for (final a in ['blue', 'teal', 'green', 'violet', 'pink', 'orange', 'graphite'])
                       a: tr('accent.$a'),
                   },
