@@ -232,7 +232,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Text(tr('quick.mode_desc'), style: TextStyle(fontSize: 13, color: StatusColors.muted(context))),
         ),
       ],
@@ -240,7 +240,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _cardTitle(BuildContext context, String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
     child: Text(
       text,
       style: isCupertino

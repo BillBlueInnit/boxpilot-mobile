@@ -54,11 +54,34 @@ else
 fi
 watcher=$!
 
-flutter test integration_test/app_test.dart -d "$device" "$@" < /dev/null 2>&1 | tee "$log"
-status=${PIPESTATUS[0]}
+flutter test integration_test/app_test.dart -d "$device" "$@" < /dev/null 2>&1 | tee "$log" &
+test_job=$!
+
+# A hung app would otherwise run into the job's limit with nothing to show for
+# it; stop in time to keep a last screenshot and the device log.
+deadline=$((SECONDS + ${UI_TEST_TIMEOUT:-1500}))
+while kill -0 "$test_job" 2> /dev/null; do
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "UI test still running after ${UI_TEST_TIMEOUT:-1500}s; stopping it." | tee -a "$log"
+    if [ "$platform" = android ]; then
+      adb -s "$device" exec-out screencap -p < /dev/null > "$out/zz_timeout.png"
+    else
+      xcrun simctl io "$device" screenshot "$out/zz_timeout.png" > /dev/null 2>&1
+    fi
+    pkill -f 'flutter_tools.snapshot test' || true
+    break
+  fi
+  sleep 5
+done
+wait "$test_job"
+status=$?
+[ "$SECONDS" -ge "$deadline" ] && status=1
 
 kill "$watcher" 2> /dev/null
 if [ "$platform" = android ]; then
   adb -s "$device" logcat -d < /dev/null > "$out/logcat.txt" 2>&1 || true
+else
+  xcrun simctl spawn "$device" log show --last 40m --style compact --predicate 'process == "Runner"' \
+    > "$out/device.log" 2>&1 || true
 fi
 exit "$status"

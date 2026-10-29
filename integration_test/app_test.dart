@@ -159,7 +159,8 @@ void main() {
       await shot(t, '13_proxies_connected');
       expect(tested, isTrue, reason: 'no node answered a latency test through the VPN');
 
-      await t.tap(find.textContaining('Auto').first);
+      // The Auto group's header: after the Proxy group's rows, one of which is also "Auto".
+      await t.tap(find.text('Auto').hitTestable().last);
       await wait(t, const Duration(seconds: 1));
       await shot(t, '14_proxies_auto_group');
 
