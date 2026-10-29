@@ -7,13 +7,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_state.dart';
-import '../../core/format.dart';
-import '../../core/models.dart';
 import '../../i18n/i18n.dart';
 import '../../src/rust/api/engine.dart' as api;
 import '../adaptive.dart';
 import '../app.dart';
-import '../widgets.dart' show autoHint;
 import 'per_app_page.dart';
 import 'rules_page.dart';
 
@@ -56,19 +53,13 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, _) {
         final lanOn = app.setting('allow_lan', false);
         final mixedPort = app.setting('mixed_port', 7890);
-        final strategy = app.setting('auto_strategy', 'quickest');
-        final regions = {'': tr('auto.region_any')};
-        for (final c in app.countryCounts()) {
-          regions[c.code] = '${flagEmoji(c.code)} ${c.code} (${c.nodes})';
-        }
-        final region = app.setting('auto_region', '');
-        if (!regions.containsKey(region)) regions[region] = region;
         return AppPage(
           title: tr('nav.settings'),
           slivers: [
             // ------------------------------------------------------------- general
             Section(
               header: tr('set.general'),
+              footer: isCupertino ? null : tr('set.accent_desc_mobile'),
               children: [
                 ChoiceTile<String>(
                   title: tr('set.language'),
@@ -78,20 +69,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   options: {'System': tr('lang.system'), for (final l in AppLanguage.values) l.code: l.nativeName},
                   onChanged: (v) => _set('language', v),
                 ),
-                SwitchTile(
-                  title: tr('set.autoconnect'),
-                  subtitle: tr('set.autoconnect_desc_mobile'),
-                  icon: const AppIcon(Icons.play_circle_outline, CupertinoIcons.play_circle),
-                  iconColor: CupertinoColors.systemGreen,
-                  value: app.setting('auto_start_core', true),
-                  onChanged: (v) => _set('auto_start_core', v),
-                ),
-              ],
-            ),
-            Section(
-              header: tr('set.appearance'),
-              footer: isCupertino ? null : tr('set.accent_desc_mobile'),
-              children: [
                 ChoiceTile<String>(
                   title: tr('set.theme'),
                   icon: const AppIcon(Icons.dark_mode_outlined, CupertinoIcons.moon),
@@ -112,12 +89,35 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                   onChanged: (v) => _set('accent', v),
                 ),
+                SwitchTile(
+                  title: tr('set.autoconnect'),
+                  subtitle: tr('set.autoconnect_desc_mobile'),
+                  icon: const AppIcon(Icons.play_circle_outline, CupertinoIcons.play_circle),
+                  iconColor: CupertinoColors.systemGreen,
+                  value: app.setting('auto_start_core', true),
+                  onChanged: (v) => _set('auto_start_core', v),
+                ),
               ],
             ),
             // ----------------------------------------------------------- connection
             Section(
               header: tr('set.proxy'),
               children: [
+                TextTile(
+                  title: tr('set.mixed_port'),
+                  description: tr('set.mixed_port_desc'),
+                  value: '$mixedPort',
+                  keyboardType: TextInputType.number,
+                  validator: (v) =>
+                      _port(v) ?? (int.parse(v) == app.setting('clash_api_port', 9090) ? tr('err.port_api') : null),
+                  onChanged: (v) => _set('mixed_port', int.parse(v)),
+                ),
+                SwitchTile(
+                  title: tr('quick.lan'),
+                  subtitle: tr('quick.lan_desc_mobile', [mixedPort]),
+                  value: lanOn,
+                  onChanged: (v) => _set('allow_lan', v),
+                ),
                 SwitchTile(
                   title: tr('set.proxy_udp'),
                   subtitle: tr('set.proxy_udp_desc'),
@@ -130,22 +130,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: app.setting('block_quic', false),
                   onChanged: (v) => _set('block_quic', v),
                 ),
-                SwitchTile(
-                  title: tr('quick.lan'),
-                  subtitle: tr('quick.lan_desc_mobile', [mixedPort]),
-                  value: lanOn,
-                  onChanged: (v) => _set('allow_lan', v),
-                ),
-                if (lanOn)
-                  TextTile(
-                    title: tr('set.mixed_port'),
-                    description: tr('set.mixed_port_desc'),
-                    value: '$mixedPort',
-                    keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        _port(v) ?? (int.parse(v) == app.setting('clash_api_port', 9090) ? tr('err.port_api') : null),
-                    onChanged: (v) => _set('mixed_port', int.parse(v)),
-                  ),
               ],
             ),
             Section(
@@ -208,44 +192,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: tr('set.ipv6_desc'),
                   value: app.setting('ipv6', false),
                   onChanged: (v) => _set('ipv6', v),
-                ),
-              ],
-            ),
-            Section(
-              header: tr('set.auto_group'),
-              footer: autoHint(strategy),
-              children: [
-                ChoiceTile<String>(
-                  title: tr('set.auto_strategy'),
-                  value: strategy,
-                  options: {for (final s in autoStrategies) s: tr('auto.$s')},
-                  onChanged: (v) => _set('auto_strategy', v),
-                ),
-                ChoiceTile<String>(
-                  title: tr('set.auto_region'),
-                  value: region,
-                  options: regions,
-                  onChanged: (v) => _set('auto_region', v),
-                ),
-                TextTile(
-                  title: tr('set.test_url'),
-                  value: app.setting('urltest_url', ''),
-                  keyboardType: TextInputType.url,
-                  validator: _httpUrl,
-                  onChanged: (v) => _set('urltest_url', v),
-                ),
-                SwitchTile(
-                  title: tr('set.auto_test'),
-                  subtitle: tr('set.auto_test_desc'),
-                  value: app.setting('auto_test_nodes', true),
-                  onChanged: (v) => _set('auto_test_nodes', v),
-                ),
-                TextTile(
-                  title: tr('set.test_interval'),
-                  value: '${app.setting('urltest_interval_min', 10)}',
-                  keyboardType: TextInputType.number,
-                  validator: (v) => (int.tryParse(v) ?? 0) < 1 ? tr('err.number') : null,
-                  onChanged: (v) => _set('urltest_interval_min', int.parse(v)),
                 ),
               ],
             ),
@@ -317,6 +263,26 @@ class _SettingsPageState extends State<SettingsPage> {
                   keyboardType: TextInputType.number,
                   validator: (v) => _port(v) ?? (int.parse(v) == mixedPort ? tr('err.port_proxy') : null),
                   onChanged: (v) => _set('clash_api_port', int.parse(v)),
+                ),
+                TextTile(
+                  title: tr('set.test_url'),
+                  value: app.setting('urltest_url', ''),
+                  keyboardType: TextInputType.url,
+                  validator: _httpUrl,
+                  onChanged: (v) => _set('urltest_url', v),
+                ),
+                SwitchTile(
+                  title: tr('set.auto_test'),
+                  subtitle: tr('set.auto_test_desc'),
+                  value: app.setting('auto_test_nodes', true),
+                  onChanged: (v) => _set('auto_test_nodes', v),
+                ),
+                TextTile(
+                  title: tr('set.test_interval'),
+                  value: '${app.setting('urltest_interval_min', 10)}',
+                  keyboardType: TextInputType.number,
+                  validator: (v) => (int.tryParse(v) ?? 0) < 1 ? tr('err.number') : null,
+                  onChanged: (v) => _set('urltest_interval_min', int.parse(v)),
                 ),
                 TextTile(
                   title: tr('set.mirror'),

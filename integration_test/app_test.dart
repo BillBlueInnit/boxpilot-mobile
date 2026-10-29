@@ -1,8 +1,9 @@
 // A guided tour of the real app for CI: it seeds a subscription, walks every
 // page in light and dark, and on Android connects the VPN through a test node
-// and checks traffic gets through. `scripts/ci_ui_test.sh` takes a screenshot
-// whenever a line starts with BOXPILOT_SHOT, and grants VPN permission on
-// BOXPILOT_NEED_VPN.
+// and checks traffic gets through. Each screenshot is a handshake with
+// `scripts/ci_ui_test.sh`: the test leaves a request file in its temp folder and
+// waits until the script has taken the screenshot and removed it. The script also
+// grants VPN permission on Android once the app is installed.
 //
 //   --dart-define=BOXPILOT_TEST_NODE=ss://… (a working node; Android only)
 
@@ -29,11 +30,18 @@ Future<void> wait(WidgetTester t, Duration d) async {
   }
 }
 
+/// Asks the CI script for a screenshot of the current screen and waits for it.
 Future<void> shot(WidgetTester t, String name) async {
   await wait(t, const Duration(milliseconds: 1200));
-  // ignore: avoid_print
-  print('BOXPILOT_SHOT $name');
-  await wait(t, const Duration(milliseconds: 1500));
+  final dir = Directory('${Directory.systemTemp.path}/boxpilot-shots');
+  await dir.create(recursive: true);
+  final request = File('${dir.path}/$name');
+  await request.writeAsString(name, flush: true);
+  final end = DateTime.now().add(const Duration(seconds: 20));
+  while (request.existsSync() && DateTime.now().isBefore(end)) {
+    await wait(t, const Duration(milliseconds: 250));
+  }
+  if (request.existsSync()) request.deleteSync();
 }
 
 Future<void> go(WidgetTester t, String path) async {
@@ -112,9 +120,6 @@ void main() {
     state.updateSettings({'theme': 'light'});
 
     if (Platform.isAndroid && testNode.isNotEmpty) {
-      // ignore: avoid_print
-      print('BOXPILOT_NEED_VPN');
-      await wait(t, const Duration(seconds: 6));
       await go(t, '/home');
       await state.connect();
       final connected = await waitFor(t, () => state.running, const Duration(seconds: 60));

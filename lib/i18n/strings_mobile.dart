@@ -40,7 +40,6 @@ const Map<String, List<String>> mobileStrings = {
     '允許同一 Wi-Fi 或熱點下的裝置使用連接埠 {0}。',
     'Разрешить устройствам в этой сети Wi-Fi или точке доступа использовать порт {0}.',
   ],
-  'set.appearance': ['Appearance', '外观', '外觀', 'Внешний вид'],
   'set.accent_dynamic': ['Wallpaper colours', '壁纸取色', '桌布取色', 'Цвета обоев'],
   'set.accent_desc_mobile': [
     'System follows your wallpaper colours (Material You).',
@@ -61,9 +60,6 @@ const Map<String, List<String>> mobileStrings = {
     '在手機上 BoxPilot 一律以 TUN 模式執行：Android 和 iOS 透過系統 VPN 提供 TUN，所有應用程式的流量都會經過它。因此這裡沒有 TUN 開關和系統代理。',
     'На телефоне BoxPilot всегда работает в режиме TUN: Android и iOS дают TUN через системный VPN, и через него идёт трафик всех приложений. Поэтому здесь нет переключателя TUN и системного прокси.',
   ],
-  'set.auto_group': ['Auto group', '自动组', '自動組', 'Группа «Авто»'],
-  'set.auto_strategy': ['How Auto picks a node', '自动选择方式', '自動選擇方式', 'Как «Авто» выбирает узел'],
-  'set.auto_region': ['Region', '地区', '地區', 'Регион'],
   'set.record_logs': ['Record logs', '记录日志', '記錄日誌', 'Записывать журнал'],
   'set.core_embedded': ['Core', '内核', '核心', 'Ядро'],
   'set.core_embedded_desc': ['Built into the app', '内置于应用', '內建於應用程式', 'Встроено в приложение'],
