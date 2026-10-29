@@ -155,7 +155,7 @@ final class CoreHost: NSObject, FlutterStreamHandler, FlutterSceneLifeCycleDeleg
         pendingStop?.cancel()
         pendingStop = nil
         stopRequested = false
-        guard let found = try? await loadManager(), let manager = found else {
+        guard let manager = try? await loadManager() else {
             return "VPN permission is required"
         }
         if !manager.isEnabled {
