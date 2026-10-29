@@ -220,7 +220,7 @@ class _ProxiesPageState extends State<ProxiesPage> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(tr('auto.${strategy}_hint'), style: TextStyle(fontSize: 12, color: StatusColors.muted(context))),
+          Text(autoHint(strategy), style: TextStyle(fontSize: 12, color: StatusColors.muted(context))),
         ],
       ),
     );

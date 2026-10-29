@@ -141,6 +141,107 @@ jobs:
           name: ios
           path: dist/*.ipa
 
+  # The real app on an Android emulator: every page in light and dark, then a
+  # VPN connection through a test node on this runner, with screenshots.
+  ui-android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+      - name: Cache libbox
+        id: libbox
+        uses: actions/cache@v4
+        with:
+          path: android/app/libs/libbox.aar
+          key: libbox-android-${{ env.SING_BOX_VERSION }}-${{ hashFiles('scripts/build_libbox.sh') }}
+      - name: Build libbox
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" bash scripts/build_libbox.sh android
+      - name: Test node
+        run: |
+          curl -sL "https://github.com/SagerNet/sing-box/releases/download/$SING_BOX_VERSION/sing-box-${SING_BOX_VERSION#v}-linux-amd64.tar.gz" | tar xz
+          pw=$(openssl rand -base64 16)
+          printf '{"log":{"level":"info"},"inbounds":[{"type":"shadowsocks","listen":"127.0.0.1","listen_port":18388,"method":"2022-blake3-aes-128-gcm","password":"%s"}],"outbounds":[{"type":"direct"}]}' "$pw" > server.json
+          nohup ./sing-box-*/sing-box run -c server.json > sing-box-server.log 2>&1 &
+          user=$(printf '%s' "2022-blake3-aes-128-gcm:$pw" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          echo "BOXPILOT_TEST_NODE=ss://$user@10.0.2.2:18388#CI%20Node%20US" >> "$GITHUB_ENV"
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: bash scripts/ci_ui_test.sh android emulator-5554 screenshots/android --dart-define=BOXPILOT_TEST_NODE=${{ env.BOXPILOT_TEST_NODE }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-android
+          path: |
+            screenshots/android
+            sing-box-server.log
+
+  # The real app on an iOS 26 simulator (native Liquid Glass bars included). The
+  # simulator cannot run a packet tunnel, so this covers the UI only.
+  ui-ios:
+    needs: test
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Boot a simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          phones = [d for runtime, ds in sorted(devices.items(), reverse=True) if "iOS-26" in runtime for d in ds if d["name"].startswith("iPhone")]
+          print(phones[0]["udid"])')
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          echo "SIM=$udid" >> "$GITHUB_ENV"
+      - run: bash scripts/ci_ui_test.sh ios "$SIM" screenshots/ios
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-ios
+          path: screenshots/ios
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [android, ios]

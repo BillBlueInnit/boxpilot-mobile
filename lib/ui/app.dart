@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_state.dart';
+import '../core/import_link.dart';
 import '../i18n/i18n.dart';
 import 'adaptive.dart';
 import 'pages/home_page.dart';
@@ -143,10 +144,19 @@ class _BoxPilotAppState extends State<BoxPilotApp> {
 }
 
 /// The tab bar: Liquid Glass `UITabBar` on iOS 26, Material 3 `NavigationBar` on Android.
-class _Shell extends StatelessWidget {
+class _Shell extends StatefulWidget {
   const _Shell({required this.shell});
 
   final StatefulNavigationShell shell;
+
+  @override
+  State<_Shell> createState() => _ShellState();
+}
+
+class _ShellState extends State<_Shell> {
+  StreamSubscription<String>? _imports;
+
+  StatefulNavigationShell get shell => widget.shell;
 
   static const tabs = [
     (
@@ -172,9 +182,40 @@ class _Shell extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    final app = AppState.instance;
+    _imports = app.imports.listen(_offerImport);
+    final pending = app.takePendingImport();
+    if (pending != null) WidgetsBinding.instance.addPostFrameCallback((_) => _offerImport(pending));
+  }
+
+  @override
+  void dispose() {
+    _imports?.cancel();
+    super.dispose();
+  }
+
+  /// A provider's import link: show the prefilled editor so the user confirms it.
+  void _offerImport(String raw) {
+    final link = parseImportLink(raw);
+    if (link == null) {
+      AppState.instance.notify(NoticeKind.error, tr('editor.err_url'));
+      return;
+    }
+    shell.goBranch(2);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx != null) openSubscriptionEditor(ctx, url: link.url, name: link.name);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final native = PlatformInfo.isIOS26OrHigher();
     return AdaptiveScaffold(
+      // The iOS 26 tab bar would otherwise shrink to a pill when a page is scrolled down.
+      minimizeBehavior: TabBarMinimizeBehavior.never,
       body: shell,
       bottomNavigationBar: AdaptiveBottomNavigationBar(
         selectedIndex: shell.currentIndex,

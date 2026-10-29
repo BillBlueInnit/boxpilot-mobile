@@ -1,5 +1,6 @@
 import Flutter
 import Foundation
+import UIKit
 import NetworkExtension
 
 /// The Dart side's handle on the embedded core, the iOS counterpart of Android's
@@ -7,9 +8,12 @@ import NetworkExtension
 /// reloads and stops it. The engine reads logs through the core's Clash API, so
 /// the app itself does not link libbox.
 ///
-/// Methods (`boxpilot/core`): `info`, `prepare`, `start(config)`, `stop`.
-/// Events (`boxpilot/core/events`): `{type: stopped, reason}`.
-final class CoreHost: NSObject, FlutterStreamHandler {
+/// Methods (`boxpilot/core`): `info`, `prepare`, `start(config)`, `stop`, `takeImport`.
+/// Events (`boxpilot/core/events`): `{type: stopped, reason}`, `{type: import, url}`.
+///
+/// Only `prepare` (the user tapping Connect) creates the VPN configuration, which is
+/// what brings up iOS's permission prompt; `start` never does.
+final class CoreHost: NSObject, FlutterStreamHandler, FlutterSceneLifeCycleDelegate {
     static let tunnelBundleId = "io.github.billblueinnit.boxpilot.PacketTunnel"
 
     /// Reloads stop and start the core back to back; the tunnel stays up in between.
@@ -20,6 +24,8 @@ final class CoreHost: NSObject, FlutterStreamHandler {
     private var statusObserver: NSObjectProtocol?
     private var pendingStop: DispatchWorkItem?
     private var stopRequested = false
+    /// An import link that arrived before the UI was listening.
+    private var pendingImport: String?
 
     init(messenger: FlutterBinaryMessenger) {
         super.init()
@@ -47,12 +53,41 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         DispatchQueue.main.async { self.events?(event) }
     }
 
+    // MARK: Import links
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions?) -> Bool {
+        for context in connectionOptions?.urlContexts ?? [] {
+            handleImport(context.url)
+        }
+        return false
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) -> Bool {
+        for context in URLContexts {
+            handleImport(context.url)
+        }
+        return true
+    }
+
+    /// `clash://install-config?url=…`, `sing-box://import-remote-profile?url=…`, `boxpilot://…`.
+    func handleImport(_ url: URL) {
+        DispatchQueue.main.async {
+            if self.events == nil {
+                self.pendingImport = url.absoluteString
+            } else {
+                self.events?(["type": "import", "url": url.absoluteString])
+            }
+        }
+    }
+
     private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         Task { @MainActor in
             switch call.method {
             case "info":
                 let paths = AppPaths()
+                let manager = try? await loadManager()
                 result([
+                    "vpnReady": manager != nil,
                     "coreVersion": Bundle.main.object(forInfoDictionaryKey: "BoxPilotCoreVersion") as? String ?? "",
                     "dataDir": paths.data.path,
                     "running": manager?.connection.status == .connected,
@@ -65,6 +100,9 @@ final class CoreHost: NSObject, FlutterStreamHandler {
             case "stop":
                 stop()
                 result(nil)
+            case "takeImport":
+                result(pendingImport)
+                pendingImport = nil
             default:
                 result(FlutterMethodNotImplemented)
             }
@@ -117,11 +155,7 @@ final class CoreHost: NSObject, FlutterStreamHandler {
         pendingStop?.cancel()
         pendingStop = nil
         stopRequested = false
-        var found = (try? await loadManager()) ?? nil
-        if found == nil, await prepare() {
-            found = self.manager
-        }
-        guard let manager = found else {
+        guard let found = try? await loadManager(), let manager = found else {
             return "VPN permission is required"
         }
         if !manager.isEnabled {

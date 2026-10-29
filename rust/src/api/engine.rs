@@ -9,6 +9,7 @@
 //! recreated) calls [`init`] again and gets the running engine with fresh
 //! callbacks and a fresh event sink.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use anyhow::{Context, Result, anyhow};
@@ -39,6 +40,8 @@ static ENGINE: OnceLock<Arc<Engine>> = OnceLock::new();
 static CALLBACKS: RwLock<Option<Arc<Callbacks>>> = RwLock::new(None);
 static SINK: Mutex<Option<StreamSink<UiEvent>>> = Mutex::new(None);
 static CORE_VERSION: OnceLock<CoreVersion> = OnceLock::new();
+/// Whether the platform's VPN permission was granted when the app started.
+static VPN_READY: AtomicBool = AtomicBool::new(false);
 
 fn rt() -> &'static tokio::runtime::Runtime {
     RUNTIME.get_or_init(|| {
@@ -91,19 +94,27 @@ impl CoreHost for DartHost {
     fn supports(&self, protocol: &str) -> bool {
         protocol != "naive"
     }
+
+    fn can_autostart(&self) -> bool {
+        VPN_READY.load(Ordering::Relaxed)
+    }
 }
 
 // ------------------------------------------------------------------ setup
 
 /// Creates the engine (once per process) and attaches this isolate to it.
-/// `root` is the data folder; `core_version` the embedded libbox version.
+/// `root` is the data folder; `core_version` the embedded libbox version;
+/// `vpn_ready` whether VPN permission is already granted (only then does
+/// "connect on launch" connect: a permission prompt needs the user's tap).
 /// Returns `true` when an engine was already running (the UI came back).
 pub fn init(
     root: String,
     core_version: String,
+    vpn_ready: bool,
     start_core: impl Fn(String) -> DartFnFuture<String> + Send + Sync + 'static,
     stop_core: impl Fn() -> DartFnFuture<()> + Send + Sync + 'static,
 ) -> Result<bool> {
+    VPN_READY.store(vpn_ready, Ordering::Relaxed);
     *CALLBACKS.write().unwrap() = Some(Arc::new(Callbacks {
         start: Box::new(start_core),
         stop: Box::new(stop_core),

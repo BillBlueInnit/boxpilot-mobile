@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -388,13 +391,17 @@ class SubscriptionDetailPage extends StatelessWidget {
 
 // ------------------------------------------------------------------ editor
 
-Future<void> openSubscriptionEditor(BuildContext context, {Subscription? existing}) =>
-    openForm<void>(context, (_) => _SubscriptionEditor(existing: existing));
+/// Opens the add or edit form. [url] and [name] prefill a new subscription
+/// (from a provider's import link).
+Future<void> openSubscriptionEditor(BuildContext context, {Subscription? existing, String? url, String? name}) =>
+    openForm<void>(context, (_) => _SubscriptionEditor(existing: existing, url: url, name: name));
 
 class _SubscriptionEditor extends StatefulWidget {
-  const _SubscriptionEditor({this.existing});
+  const _SubscriptionEditor({this.existing, this.url, this.name});
 
   final Subscription? existing;
+  final String? url;
+  final String? name;
 
   @override
   State<_SubscriptionEditor> createState() => _SubscriptionEditorState();
@@ -404,7 +411,9 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
   final app = AppState.instance;
   final _form = GlobalKey<FormState>();
   late final Subscription _sub =
-      widget.existing ?? Subscription.blank(intervalMin: app.setting('sub_default_interval_min', 720));
+      widget.existing ??
+      Subscription.blank(intervalMin: app.setting('sub_default_interval_min', 720))
+          .copyWith({'url': widget.url ?? '', 'name': widget.name ?? ''});
   late bool _remote = widget.existing?.isRemote ?? true;
   late final _name = TextEditingController(text: _sub.name);
   late final _url = TextEditingController(text: _sub.url);
@@ -428,6 +437,21 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
     } catch (_) {
       return tr('err.invalid');
     }
+  }
+
+  /// A Clash YAML, sing-box JSON or list of share links saved as a file.
+  Future<void> _chooseFile() async {
+    final file = await FilePicker.pickFile();
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > 8 << 20) {
+      app.notify(NoticeKind.error, tr('err.file_too_large'));
+      return;
+    }
+    setState(() {
+      _content.text = utf8.decode(bytes, allowMalformed: true);
+      if (_name.text.trim().isEmpty) _name.text = file.name.replaceFirst(RegExp(r'\.[^.]+$'), '');
+    });
   }
 
   Future<void> _save() async {
@@ -487,7 +511,7 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
                 autofocus: _isNew,
                 validator: (v) => RegExp(r'^https?://\S+$').hasMatch(v) ? null : tr('editor.err_url'),
               )
-            else
+            else ...[
               FormFieldRow(
                 label: tr('editor.content'),
                 controller: _content,
@@ -495,6 +519,14 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
                 maxLines: 10,
                 validator: (v) => v.isEmpty && _isNew ? tr('editor.err_content') : null,
               ),
+              NavTile(
+                title: tr('subs.choose_file'),
+                icon: const AppIcon(Icons.folder_open, CupertinoIcons.folder),
+                iconColor: CupertinoColors.systemBlue,
+                chevron: false,
+                onTap: _chooseFile,
+              ),
+            ],
             FormFieldRow(label: tr('editor.name'), controller: _name, placeholder: tr('editor.name_ph')),
           ],
         ),
@@ -517,7 +549,7 @@ class _SubscriptionEditorState extends State<_SubscriptionEditor> {
               ),
               SwitchTile(
                 title: tr('editor.update_start'),
-                subtitle: tr('editor.update_start_desc'),
+                subtitle: tr('editor.update_start_desc_mobile'),
                 value: _updateOnStart,
                 onChanged: (v) => setState(() => _updateOnStart = v),
               ),

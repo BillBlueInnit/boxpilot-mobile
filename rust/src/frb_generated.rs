@@ -439,6 +439,7 @@ fn wire__crate__api__engine__init_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_root = <String>::sse_decode(&mut deserializer);
             let api_core_version = <String>::sse_decode(&mut deserializer);
+            let api_vpn_ready = <bool>::sse_decode(&mut deserializer);
             let api_start_core = decode_DartFn_Inputs_String_Output_String_AnyhowException(
                 <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
             );
@@ -452,6 +453,7 @@ fn wire__crate__api__engine__init_impl(
                         let output_ok = crate::api::engine::init(
                             api_root,
                             api_core_version,
+                            api_vpn_ready,
                             api_start_core,
                             api_stop_core,
                         )?;

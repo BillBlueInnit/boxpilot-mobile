@@ -3,7 +3,7 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
-  private var core: CoreHost?
+  private(set) var core: CoreHost?
 
   override func application(
     _ application: UIApplication,
@@ -15,7 +15,10 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "BoxPilotCore") {
-      core = CoreHost(messenger: registrar.messenger())
+      let host = CoreHost(messenger: registrar.messenger())
+      // Import links reach the app through scene callbacks.
+      registrar.addSceneDelegate(host)
+      core = host
     }
   }
 }

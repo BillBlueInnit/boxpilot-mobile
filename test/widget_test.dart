@@ -1,4 +1,5 @@
 import 'package:boxpilot/core/format.dart';
+import 'package:boxpilot/core/import_link.dart';
 import 'package:boxpilot/core/models.dart';
 import 'package:boxpilot/i18n/i18n.dart';
 import 'package:boxpilot/i18n/strings_desktop.g.dart';
@@ -78,6 +79,29 @@ void main() {
       });
       expect(sub.info!.used, 3);
       expect(sub.info!.expire, 0);
+    });
+  });
+
+  group('import links', () {
+    test('clash and clashmeta', () {
+      final l = parseImportLink(
+        'clash://install-config?url=https%3A%2F%2Fsub.example.com%2Fs%3Ftoken%3Dab&name=My%20Provider',
+      )!;
+      expect(l.url, 'https://sub.example.com/s?token=ab');
+      expect(l.name, 'My Provider');
+      expect(parseImportLink('clashmeta://install-config?url=https://x.example/s')!.name, isNull);
+    });
+
+    test('sing-box takes the name from the fragment', () {
+      final l = parseImportLink('sing-box://import-remote-profile?url=https%3A%2F%2Fx.example%2Fs#%E6%9C%BA%E5%9C%BA')!;
+      expect(l.url, 'https://x.example/s');
+      expect(l.name, '机场');
+    });
+
+    test('rejects other schemes and non-http subscriptions', () {
+      expect(parseImportLink('https://x.example/s'), isNull);
+      expect(parseImportLink('clash://install-config?url=file:///etc/passwd'), isNull);
+      expect(parseImportLink('clash://install-config'), isNull);
     });
   });
 }

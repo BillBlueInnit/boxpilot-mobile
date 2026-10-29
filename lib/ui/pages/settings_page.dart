@@ -13,6 +13,8 @@ import '../../i18n/i18n.dart';
 import '../../src/rust/api/engine.dart' as api;
 import '../adaptive.dart';
 import '../app.dart';
+import '../widgets.dart' show autoHint;
+import 'per_app_page.dart';
 import 'rules_page.dart';
 
 const _sourceUrl = 'https://github.com/BillBlueInnit/boxpilot-mobile';
@@ -150,18 +152,19 @@ class _SettingsPageState extends State<SettingsPage> {
               header: tr('set.tun_mobile'),
               footer: tr('set.tun_mobile_desc'),
               children: [
+                if (Platform.isAndroid)
+                  NavTile(
+                    title: tr('perapp.title'),
+                    subtitle: tr('perapp.summary'),
+                    icon: const AppIcon(Icons.apps, CupertinoIcons.square_grid_2x2),
+                    onTap: () => pushPage(context, const PerAppPage()),
+                  ),
                 ChoiceTile<String>(
                   title: tr('set.stack'),
                   subtitle: tr('set.stack_desc'),
                   value: app.setting('tun_stack', 'mixed'),
                   options: const {'mixed': 'mixed', 'system': 'system', 'gvisor': 'gvisor'},
                   onChanged: (v) => _set('tun_stack', v),
-                ),
-                SwitchTile(
-                  title: tr('set.strict'),
-                  subtitle: tr('set.strict_desc'),
-                  value: app.setting('tun_strict_route', true),
-                  onChanged: (v) => _set('tun_strict_route', v),
                 ),
                 TextTile(
                   title: tr('set.mtu'),
@@ -196,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 SwitchTile(
                   title: tr('set.fakeip'),
-                  subtitle: tr('set.fakeip_desc'),
+                  subtitle: tr('set.fakeip_desc_mobile'),
                   value: app.setting('fake_ip', false),
                   onChanged: (v) => _set('fake_ip', v),
                 ),
@@ -210,7 +213,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             Section(
               header: tr('set.auto_group'),
-              footer: tr('auto.${strategy}_hint'),
+              footer: autoHint(strategy),
               children: [
                 ChoiceTile<String>(
                   title: tr('set.auto_strategy'),
@@ -230,6 +233,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   keyboardType: TextInputType.url,
                   validator: _httpUrl,
                   onChanged: (v) => _set('urltest_url', v),
+                ),
+                SwitchTile(
+                  title: tr('set.auto_test'),
+                  subtitle: tr('set.auto_test_desc'),
+                  value: app.setting('auto_test_nodes', true),
+                  onChanged: (v) => _set('auto_test_nodes', v),
                 ),
                 TextTile(
                   title: tr('set.test_interval'),
@@ -420,7 +429,7 @@ class _ResetFormState extends State<_ResetForm> {
           children: [
             SwitchTile(
               title: tr('reset.settings'),
-              subtitle: tr('reset.settings_desc'),
+              subtitle: tr('reset.settings_desc_mobile'),
               value: _settings,
               onChanged: (v) => setState(() => _settings = v),
             ),

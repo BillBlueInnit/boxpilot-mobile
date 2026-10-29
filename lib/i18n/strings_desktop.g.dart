@@ -898,11 +898,13 @@ const Map<String, List<String>> desktopStrings = {
     'Clash API, используемый приложением.',
   ],
   'set.test_url': ['Latency test URL', '延迟测试地址', '延遲測試網址', 'URL проверки задержки'],
-  'set.test_interval': [
-    'Auto group test interval (minutes)',
-    '自动分组测试间隔（分钟）',
-    '自動群組測試間隔（分鐘）',
-    'Интервал проверки автогруппы (мин)',
+  'set.test_interval': ['Node test interval (minutes)', '节点测试间隔（分钟）', '節點測試間隔（分鐘）', 'Интервал проверки узлов (мин)'],
+  'set.auto_test': ['Test nodes automatically', '自动测试节点', '自動測試節點', 'Проверять узлы автоматически'],
+  'set.auto_test_desc': [
+    'Measure every node\'s latency on the interval below, so latencies stay current and Auto picks from fresh results.',
+    '按下方间隔测量所有节点的延迟，让延迟保持最新，自动选择也基于最新结果。',
+    '依下方間隔測量所有節點的延遲，讓延遲保持最新，自動選擇也基於最新結果。',
+    'Измерять задержку всех узлов с интервалом ниже: значения всегда свежие, и Авто выбирает по ним.',
   ],
   'set.export': ['Generated configuration', '生成的配置', '產生的設定', 'Сгенерированная конфигурация'],
   'set.export_desc': [

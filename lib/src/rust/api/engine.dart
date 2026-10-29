@@ -11,19 +11,23 @@ part 'engine.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `callbacks`, `connection_info`, `encode_delay`, `engine`, `init_logging`, `rt`, `tokio_blocking`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Callbacks`, `DartHost`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `start`, `stop`, `supports`, `version`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `can_autostart`, `from`, `start`, `stop`, `supports`, `version`
 
 /// Creates the engine (once per process) and attaches this isolate to it.
-/// `root` is the data folder; `core_version` the embedded libbox version.
+/// `root` is the data folder; `core_version` the embedded libbox version;
+/// `vpn_ready` whether VPN permission is already granted (only then does
+/// "connect on launch" connect: a permission prompt needs the user's tap).
 /// Returns `true` when an engine was already running (the UI came back).
 Future<bool> init({
   required String root,
   required String coreVersion,
+  required bool vpnReady,
   required FutureOr<String> Function(String) startCore,
   required FutureOr<void> Function() stopCore,
 }) => RustLib.instance.api.crateApiEngineInit(
   root: root,
   coreVersion: coreVersion,
+  vpnReady: vpnReady,
   startCore: startCore,
   stopCore: stopCore,
 );

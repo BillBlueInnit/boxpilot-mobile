@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/format.dart';
@@ -176,6 +177,11 @@ class ConnectButton extends StatelessWidget {
 
   static const size = 132.0;
 
+  void _press() {
+    HapticFeedback.mediumImpact();
+    onPressed();
+  }
+
   @override
   Widget build(BuildContext context) {
     final label = running ? tr('btn.disconnect') : tr('btn.connect');
@@ -191,7 +197,7 @@ class ConnectButton extends StatelessWidget {
               SizedBox.square(
                 dimension: size,
                 child: AdaptiveButton.sfSymbol(
-                  onPressed: busy ? null : onPressed,
+                  onPressed: busy ? null : _press,
                   sfSymbol: SFSymbol('power', size: 44, color: running ? CupertinoColors.white : null),
                   style: running ? AdaptiveButtonStyle.prominentGlass : AdaptiveButtonStyle.glass,
                   color: running ? CupertinoTheme.of(context).primaryColor : null,
@@ -244,7 +250,7 @@ class ConnectButton extends StatelessWidget {
                 shape: const CircleBorder(),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: busy ? null : onPressed,
+                  onTap: busy ? null : _press,
                   child: Icon(Icons.power_settings_new_rounded, size: 48, color: fg),
                 ),
               ),
@@ -401,4 +407,11 @@ class CountryBadge extends StatelessWidget {
     if (isCupertino || source == null) return labelled;
     return Tooltip(message: source, triggerMode: TooltipTriggerMode.longPress, child: labelled);
   }
+}
+
+/// The Auto strategy's explanation. The engine makes Auto's picks, and iOS pauses
+/// it with the app, so the iPhone hint says so.
+String autoHint(String strategy) {
+  final hint = tr('auto.${strategy}_hint');
+  return isCupertino ? '$hint ${tr('auto.ios_managed')}' : hint;
 }

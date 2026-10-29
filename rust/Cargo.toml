@@ -12,7 +12,7 @@ crate-type = ["cdylib", "staticlib"]
 flutter_rust_bridge = "=2.13.0"
 # The desktop app's core, unchanged: converter, config generator, engine.
 # Local checkouts override this with a path in .cargo/config.toml (see README).
-boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "995dfff55512d6912e4e56ccf88e562e677d3a06" }
+boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "d661e1f9c3cff512e945edecd64cde6f2a0c2fcc" }
 anyhow = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

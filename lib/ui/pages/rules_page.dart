@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -252,6 +255,28 @@ class _RuleEditorState extends State<_RuleEditor> {
 
   bool get _isNew => widget.existing == null;
 
+  /// A rule-set file is copied into the data folder; the engine reads it from there
+  /// and converts it again whenever it is updated, as for a local file on desktop.
+  Future<void> _chooseFile() async {
+    final file = await FilePicker.pickFile();
+    if (file == null) return;
+    final dir = Directory('${app.dataDir}${Platform.pathSeparator}imported');
+    await dir.create(recursive: true);
+    final safe = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final target = File('${dir.path}${Platform.pathSeparator}$safe');
+    await target.writeAsBytes(await file.readAsBytes(), flush: true);
+    setState(() {
+      _source.text = target.path;
+      if (_name.text.trim().isEmpty) _name.text = file.name.replaceFirst(RegExp(r'[.][^.]+$'), '');
+    });
+  }
+
+  String? _validSource(String v) {
+    if (RegExp(r'^https?://\S+$').hasMatch(v)) return null;
+    if (v.isNotEmpty && File(v).existsSync()) return null;
+    return tr('rules.err_source');
+  }
+
   void _save() {
     if (!(_form.currentState?.validate() ?? false)) return;
     app.saveRuleProvider(
@@ -305,7 +330,14 @@ class _RuleEditorState extends State<_RuleEditor> {
               placeholder: 'https://',
               keyboardType: TextInputType.url,
               autofocus: _isNew,
-              validator: (v) => RegExp(r'^https?://\S+$').hasMatch(v) ? null : tr('rules.local_unsupported'),
+              validator: _validSource,
+            ),
+            NavTile(
+              title: tr('subs.choose_file'),
+              icon: const AppIcon(Icons.folder_open, CupertinoIcons.folder),
+              iconColor: CupertinoColors.systemBlue,
+              chevron: false,
+              onTap: _chooseFile,
             ),
             FormFieldRow(label: tr('editor.name'), controller: _name, placeholder: tr('editor.name_ph')),
           ],

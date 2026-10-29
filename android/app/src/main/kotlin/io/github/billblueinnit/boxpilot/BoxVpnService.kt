@@ -24,7 +24,6 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LocalDNSTransport
 import io.nekohasekai.libbox.NeighborUpdateListener
 import io.nekohasekai.libbox.NetworkInterfaceIterator
-import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.PlatformUser
 import io.nekohasekai.libbox.ShellSession
@@ -111,7 +110,7 @@ class BoxVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                     it.start()
                     server = it
                 }
-                server.startOrReloadService(config, OverrideOptions())
+                server.startOrReloadService(config, PerApp.overrideOptions(this@BoxVpnService))
                 started = true
                 showNotification(connected = true)
                 refreshTile()

@@ -108,17 +108,36 @@ class AppState extends ChangeNotifier {
     final info = await host.info();
     dataDir = info.dataDir;
     if (info.accent != null) systemAccent = Color(info.accent!);
-    await api.init(
+    final reattached = await api.init(
       root: info.dataDir,
       coreVersion: info.coreVersion,
+      vpnReady: info.vpnReady,
       startCore: (config) => host.start(config),
       stopCore: () => host.stop(),
     );
     api.events().listen(_onEvent);
     host.events.listen(_onHostEvent);
     _reloadAll();
+    // The VPN outlived the app (iOS keeps the tunnel when the app is closed):
+    // take it over again. Starting a running core reloads it in place.
+    if (info.running && !reattached && !running) {
+      unawaited(api.start().catchError((_) {}));
+    }
+    _pendingImport = await host.takeImport();
     _ready = true;
     notifyListeners();
+  }
+
+  /// Provider import links (`clash://install-config?url=…`) for the UI to confirm.
+  final _imports = StreamController<String>.broadcast(sync: true);
+  Stream<String> get imports => _imports.stream;
+  String? _pendingImport;
+
+  /// A link that arrived before any page was listening.
+  String? takePendingImport() {
+    final link = _pendingImport;
+    _pendingImport = null;
+    return link;
   }
 
   void _reloadAll() {
@@ -198,6 +217,12 @@ class AppState extends ChangeNotifier {
         running || busy ? disconnect() : connect();
       case HostDisconnect():
         disconnect();
+      case HostImport(:final url):
+        if (_imports.hasListener) {
+          _imports.add(url);
+        } else {
+          _pendingImport = url;
+        }
     }
   }
 
@@ -219,6 +244,11 @@ class AppState extends ChangeNotifier {
   }
 
   void disconnect() => api.stop();
+
+  /// Reloads a running core, e.g. after a change the engine doesn't know about (per-app proxy).
+  void reloadCore() {
+    if (running) api.restart();
+  }
 
   void toggle() => running || busy ? disconnect() : connect();
 

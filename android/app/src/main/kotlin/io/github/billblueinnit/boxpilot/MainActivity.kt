@@ -1,6 +1,9 @@
 package io.github.billblueinnit.boxpilot
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -9,6 +12,7 @@ import io.flutter.embedding.engine.FlutterEngineCache
 class MainActivity : FlutterActivity() {
     companion object {
         private const val REQUEST_VPN = 1
+        private const val REQUEST_NOTIFICATIONS = 2
 
         /** The visible activity, for the VPN consent dialog. */
         @Volatile
@@ -19,6 +23,12 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         current = this
+        if (savedInstanceState == null) handleImport(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleImport(intent)
     }
 
     override fun onDestroy() {
@@ -34,9 +44,26 @@ class MainActivity : FlutterActivity() {
 
     override fun shouldDestroyEngineWithHost(): Boolean = false
 
+    /** `clash://install-config?url=…`, `sing-box://import-remote-profile?url=…`, `boxpilot://…`. */
+    private fun handleImport(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
+        BoxPilotApp.instance.core.emitImport(uri.toString())
+    }
+
     fun askVpnConsent(intent: Intent) {
         @Suppress("DEPRECATION")
         startActivityForResult(intent, REQUEST_VPN)
+    }
+
+    /** Asked once, right after VPN consent: the VPN notification needs it on Android 13+. */
+    fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("prompts", MODE_PRIVATE)
+        if (prefs.getBoolean("notifications_asked", false)) return
+        prefs.edit().putBoolean("notifications_asked", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
     }
 
     @Deprecated("Activity result API")

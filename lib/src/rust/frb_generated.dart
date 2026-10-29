@@ -99,6 +99,7 @@ abstract class RustLibApi extends BaseApi {
   Future<bool> crateApiEngineInit({
     required String root,
     required String coreVersion,
+    required bool vpnReady,
     required FutureOr<String> Function(String) startCore,
     required FutureOr<void> Function() stopCore,
   });
@@ -394,6 +395,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<bool> crateApiEngineInit({
     required String root,
     required String coreVersion,
+    required bool vpnReady,
     required FutureOr<String> Function(String) startCore,
     required FutureOr<void> Function() stopCore,
   }) {
@@ -403,20 +405,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(root, serializer);
           sse_encode_String(coreVersion, serializer);
+          sse_encode_bool(vpnReady, serializer);
           sse_encode_DartFn_Inputs_String_Output_String_AnyhowException(startCore, serializer);
           sse_encode_DartFn_Inputs__Output_unit_AnyhowException(stopCore, serializer);
           pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12, port: port_);
         },
         codec: SseCodec(decodeSuccessData: sse_decode_bool, decodeErrorData: sse_decode_AnyhowException),
         constMeta: kCrateApiEngineInitConstMeta,
-        argValues: [root, coreVersion, startCore, stopCore],
+        argValues: [root, coreVersion, vpnReady, startCore, stopCore],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta get kCrateApiEngineInitConstMeta =>
-      const TaskConstMeta(debugName: "init", argNames: ["root", "coreVersion", "startCore", "stopCore"]);
+      const TaskConstMeta(debugName: "init", argNames: ["root", "coreVersion", "vpnReady", "startCore", "stopCore"]);
 
   @override
   List<LogEntry> crateApiEngineLogs({required int skip}) {
