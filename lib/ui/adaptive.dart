@@ -228,7 +228,7 @@ class _ScrollEdge extends StatelessWidget {
   Widget build(BuildContext context) {
     // The scaffold has added the toolbar to the top padding.
     final top = MediaQuery.paddingOf(context).top;
-    final height = top + 18;
+    final height = top + 22;
     final background = CupertinoTheme.of(context).scaffoldBackgroundColor;
     return Positioned(
       top: 0,
@@ -244,8 +244,8 @@ class _ScrollEdge extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0, (top - 10) / height, 1],
-                colors: [background, background.withValues(alpha: 0.9), background.withValues(alpha: 0)],
+                stops: [0, (top - 4) / height, 1],
+                colors: [background, background, background.withValues(alpha: 0)],
               ),
             ),
           ),
@@ -301,7 +301,9 @@ class SectionBox extends StatelessWidget {
                 padding: const EdgeInsetsDirectional.only(start: 16, end: 16, top: 6),
                 child: Text(footer!, style: style),
               ),
-        hasLeading: false,
+        // Dividers start at the rows' text: after the icons when there are any.
+        hasLeading: children.any(_hasIcon),
+        additionalDividerMargin: children.any(_hasIcon) ? null : _iosTextInset - 14,
         children: children.isEmpty ? [const SizedBox.shrink()] : children,
       );
     }
@@ -337,6 +339,28 @@ class SectionBox extends StatelessWidget {
 
 // ---------------------------------------------------------------- tiles
 
+/// Where an iOS row's text starts inside its card when it has no icon, lined
+/// up with the section header (Flutter's notched rows start at 28).
+const double _iosTextInset = 16;
+
+bool _hasIcon(Widget w) => switch (w) {
+  NavTile(:final icon) || SwitchTile(:final icon) => icon != null,
+  ChoiceTile(:final icon) || TextTile(:final icon) => icon != null,
+  _ => false,
+};
+
+/// Padding of an iOS row. Flutter's notched rows with an icon have none above
+/// and below, so a two-line description touched the card's edge.
+EdgeInsetsGeometry _iosTilePadding({required bool icon}) => icon
+    ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+    : const EdgeInsetsDirectional.fromSTEB(_iosTextInset, 10, 14, 10);
+
+/// The title of an iOS row: body size and regular weight even with a
+/// description (Flutter makes those titles semibold, Settings does not).
+TextStyle? _iosTitleStyle({required bool subtitle, Color? color}) => subtitle
+    ? TextStyle(fontSize: 17, fontWeight: FontWeight.w400, color: color)
+    : (color == null ? null : TextStyle(color: color));
+
 /// A row that opens something (chevron on iOS).
 class NavTile extends StatelessWidget {
   const NavTile({
@@ -369,8 +393,12 @@ class NavTile extends StatelessWidget {
     if (isCupertino) {
       final red = CupertinoColors.destructiveRed.resolveFrom(context);
       return CupertinoListTile.notched(
+        padding: _iosTilePadding(icon: icon != null),
         leading: icon == null ? null : _IosIconBadge(icon: icon!.cupertino, color: iconColor),
-        title: Text(title, style: destructive ? TextStyle(color: red) : null),
+        title: Text(
+          title,
+          style: _iosTitleStyle(subtitle: subtitle != null, color: destructive ? red : null),
+        ),
         subtitle: subtitle == null ? null : Text(subtitle!, maxLines: 2),
         // A long value gives way to the title, as in Settings.
         additionalInfo: value == null
@@ -442,8 +470,9 @@ class SwitchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isCupertino) {
       return CupertinoListTile.notched(
+        padding: _iosTilePadding(icon: icon != null),
         leading: icon == null ? null : _IosIconBadge(icon: icon!.cupertino, color: iconColor),
-        title: Text(title),
+        title: Text(title, style: _iosTitleStyle(subtitle: subtitle != null)),
         subtitle: subtitle == null ? null : Text(subtitle!, maxLines: 3),
         trailing: inSheet(context)
             ? CupertinoSwitch(value: value, onChanged: onChanged)
@@ -513,7 +542,8 @@ Future<T?> pickOption<T>(
       footer: footer,
       children: [
         for (final e in options.entries)
-          CupertinoListTile(
+          CupertinoListTile.notched(
+            padding: _iosTilePadding(icon: false),
             title: Text(e.value),
             trailing: e.key == value
                 ? Icon(CupertinoIcons.check_mark, color: CupertinoTheme.of(context).primaryColor)

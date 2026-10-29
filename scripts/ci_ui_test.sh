@@ -37,7 +37,11 @@ watch_ios() {
     if [ -n "$data" ] && [ -d "$data/tmp/boxpilot-shots" ]; then
       for f in "$data/tmp/boxpilot-shots"/*; do
         [ -e "$f" ] || continue
-        xcrun simctl io "$device" screenshot "$out/$(basename "$f").png" > /dev/null 2>&1
+        name=$(basename "$f")
+        # One retry; why a screenshot failed goes to watcher.log.
+        xcrun simctl io "$device" screenshot "$out/$name.png" >> "$out/watcher.log" 2>&1 \
+          || { sleep 1; xcrun simctl io "$device" screenshot "$out/$name.png" >> "$out/watcher.log" 2>&1; } \
+          || echo "screenshot $name failed" >> "$out/watcher.log"
         rm -f "$f"
       done
     fi
