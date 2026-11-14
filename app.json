@@ -72,7 +72,10 @@
               "arm64-v8a",
               "armeabi-v7a",
               "x86_64"
-            ]
+            ],
+            "gifEnabled": false,
+            "webpEnabled": false,
+            "webpAnimated": false
           },
           "ios": {
             "deploymentTarget": "16.4"
