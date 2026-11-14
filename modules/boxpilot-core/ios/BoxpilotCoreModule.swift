@@ -38,6 +38,7 @@ public class BoxpilotCoreModule: Module {
                     "perApp": false,
                 ]
                 if let error { info["error"] = error }
+                if let problem = TunnelManager.problem() { info["vpnProblem"] = problem }
                 promise.resolve(info)
             }
         }

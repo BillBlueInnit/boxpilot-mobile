@@ -12,7 +12,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 # The desktop app's core, unchanged: converter, config generator, engine.
 # Local checkouts override this with a path in .cargo/config.toml (see README).
-boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "d041479df457bfa2bc010a6400b0384a1107c3d5" }
+boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "656b2140bd50239328d189642863fae170841607" }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

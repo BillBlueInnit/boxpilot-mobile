@@ -16,6 +16,20 @@ export type HostInfo = {
   perApp: boolean;
   /** Why the engine could not be created, if it could not. */
   error?: string | null;
+  /**
+   * iOS: why this copy of the app cannot use VPN at all, if it cannot. The
+   * PacketTunnel extension is missing, or the app was signed without the
+   * Network Extension capability (iOS then never shows its VPN prompt).
+   */
+  vpnProblem?: 'unsigned' | 'no_extension';
+};
+
+export type VpnPermission = {
+  ok: boolean;
+  /** `denied`: the user said no or the system refused; else see `HostInfo.vpnProblem`. */
+  reason?: 'denied' | 'unsigned' | 'no_extension';
+  /** The system's own words for a refusal. */
+  detail?: string;
 };
 
 export type PerAppMode = 'all' | 'include' | 'exclude';
@@ -30,7 +44,7 @@ declare class BoxpilotCoreModule extends NativeModule<Events> {
   /** Calls an engine method; resolves to `{"ok": …}` or `{"error": "…"}` as text. */
   invoke(method: string, args: string): Promise<string>;
   /** Asks for VPN permission if needed. Only Connect calls this. */
-  prepare(): Promise<boolean>;
+  prepare(): Promise<VpnPermission>;
   /** Android: ends the process (after a reset). Does nothing on iOS. */
   exit(): void;
   perApp(): { mode: PerAppMode; packages: string[] };

@@ -43,6 +43,7 @@ export default function Home() {
         running ? [{ icon: 'refresh', label: t('tip.restart_core'), onPress: () => void engine.restart() }] : []
       }>
       <Hero />
+      <VpnProblem />
       {hasSubscriptions ? (
         <>
           <ModeCard />
@@ -135,6 +136,29 @@ function Hero() {
         {detail}
       </Text>
     </View>
+  );
+}
+
+/**
+ * iOS: this copy of the app can never get VPN permission (it was signed
+ * without the capability, or its extension was removed). iOS shows no prompt
+ * in that case, so the reason is stated here, before the user taps Connect.
+ */
+function VpnProblem() {
+  const t = useT();
+  const palette = usePalette();
+  const problem = useStore((s) => s.host?.vpnProblem);
+  if (!problem) return null;
+  return (
+    <Card style={{ marginHorizontal: GUTTER, marginTop: 16, padding: 20 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Icon name="error" size={20} color={palette.fair} />
+        <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: palette.text }}>{t('vpn.unavailable')}</Text>
+      </View>
+      <Text selectable style={{ fontSize: 14, lineHeight: 20, color: palette.secondary, marginTop: 8 }}>
+        {t(`vpn.${problem}`)}
+      </Text>
+    </Card>
   );
 }
 

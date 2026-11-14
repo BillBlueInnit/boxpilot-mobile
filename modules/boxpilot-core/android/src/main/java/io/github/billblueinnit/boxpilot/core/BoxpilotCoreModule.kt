@@ -63,15 +63,15 @@ class BoxpilotCoreModule : Module() {
         AsyncFunction("prepare") { promise: Promise ->
             val intent = VpnService.prepare(context)
             if (intent == null) {
-                promise.resolve(true)
+                promise.resolve(mapOf("ok" to true))
                 return@AsyncFunction
             }
             val activity = appContext.currentActivity
             if (activity == null) {
-                promise.resolve(false)
+                promise.resolve(DENIED)
                 return@AsyncFunction
             }
-            pendingConsent?.resolve(false)
+            pendingConsent?.resolve(DENIED)
             pendingConsent = promise
             @Suppress("DEPRECATION")
             activity.startActivityForResult(intent, REQUEST_VPN)
@@ -79,7 +79,7 @@ class BoxpilotCoreModule : Module() {
 
         OnActivityResult { _, payload ->
             if (payload.requestCode == REQUEST_VPN) {
-                pendingConsent?.resolve(payload.resultCode == Activity.RESULT_OK)
+                pendingConsent?.resolve(if (payload.resultCode == Activity.RESULT_OK) mapOf("ok" to true) else DENIED)
                 pendingConsent = null
             }
         }
@@ -144,6 +144,7 @@ class BoxpilotCoreModule : Module() {
 
     companion object {
         private const val REQUEST_VPN = 0xB0C5
+        private val DENIED = mapOf("ok" to false, "reason" to "denied")
         private val TONES = listOf(0, 10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)
     }
 }

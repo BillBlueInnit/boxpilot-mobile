@@ -213,4 +213,22 @@ export const mobileStrings: Record<string, string[]> = {
     '符合的流量走獨立的節點群組，可在「代理」頁選擇其節點。',
     'Совпадения идут через собственную группу. Узел для неё выбирается на странице «Прокси».',
   ],
+  'vpn.unavailable': [
+    'VPN can’t be used in this copy of BoxPilot',
+    '这份 BoxPilot 无法使用 VPN',
+    '這份 BoxPilot 無法使用 VPN',
+    'В этой копии BoxPilot VPN недоступен',
+  ],
+  'vpn.unsigned': [
+    'It was signed without the Network Extension capability, so iOS refuses to add a VPN configuration and never shows its permission prompt. Free Apple IDs can’t have this capability. Re-sign the IPA with a provisioning profile from a paid Apple Developer account that includes Network Extensions (Packet Tunnel) and App Groups, for both the app and its PacketTunnel extension.',
+    '它在签名时没有「网络扩展」权限，所以 iOS 会直接拒绝添加 VPN 配置，也不会弹出授权提示。免费 Apple ID 无法获得此权限。请使用付费 Apple 开发者账号的描述文件重新签名 IPA，描述文件需包含 Network Extensions（Packet Tunnel）和 App Groups，并同时用于应用本体和其中的 PacketTunnel 扩展。',
+    '它在簽署時沒有「網路延伸功能」權限，所以 iOS 會直接拒絕加入 VPN 設定，也不會顯示授權提示。免費 Apple ID 無法取得此權限。請使用付費 Apple 開發者帳號的描述檔重新簽署 IPA，描述檔需包含 Network Extensions（Packet Tunnel）與 App Groups，並同時用於 App 本體和其中的 PacketTunnel 延伸功能。',
+    'Она подписана без возможности Network Extension, поэтому iOS отказывается добавлять конфигурацию VPN и не показывает запрос разрешения. Бесплатные Apple ID не могут получить эту возможность. Переподпишите IPA профилем платной учётной записи Apple Developer, в котором есть Network Extensions (Packet Tunnel) и App Groups, — и для приложения, и для его расширения PacketTunnel.',
+  ],
+  'vpn.no_extension': [
+    'Its PacketTunnel extension is missing: the tool that signed or installed it removed it, and the VPN runs inside that extension. Install it with a tool that keeps app extensions and signs them with the Network Extension capability.',
+    '其中的 PacketTunnel 扩展不见了：签名或安装工具把它移除了，而 VPN 正是在这个扩展里运行的。请使用会保留应用扩展、并为其签上「网络扩展」权限的工具来安装。',
+    '其中的 PacketTunnel 延伸功能不見了：簽署或安裝工具把它移除了，而 VPN 正是在這個延伸功能裡執行的。請使用會保留 App 延伸功能、並為其簽上「網路延伸功能」權限的工具來安裝。',
+    'В ней нет расширения PacketTunnel: его удалил инструмент подписи или установки, а VPN работает именно в этом расширении. Установите приложение инструментом, который сохраняет расширения и подписывает их с возможностью Network Extension.',
+  ],
 };

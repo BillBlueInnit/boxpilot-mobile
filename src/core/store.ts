@@ -1,7 +1,7 @@
 // The app's mirror of the Rust engine: state comes from the engine's getters
 // and is refreshed on its events. Every action goes to the engine.
 
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import { create } from 'zustand';
 
 import Native, { type HostInfo } from '../../modules/boxpilot-core';
@@ -207,9 +207,14 @@ export async function connect() {
   const { status } = get();
   if (isRunning(status) || isBusy(status)) return;
   // The only place that may bring up the system's VPN permission prompt.
-  const granted = await Native.prepare();
-  if (!granted) {
-    notify('error', tr('vpn.denied'));
+  const permission = await Native.prepare();
+  if (!permission.ok) {
+    if (permission.reason === 'unsigned' || permission.reason === 'no_extension') {
+      // iOS will never show its VPN prompt for this copy of the app: say why.
+      Alert.alert(tr('vpn.unavailable'), tr(`vpn.${permission.reason}`));
+    } else {
+      notify('error', permission.detail ? `${tr('vpn.denied')} (${permission.detail})` : tr('vpn.denied'));
+    }
     return;
   }
   await engine.setVpnReady(true);

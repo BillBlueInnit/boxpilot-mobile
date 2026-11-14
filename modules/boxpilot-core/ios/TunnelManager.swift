@@ -48,9 +48,41 @@ final class TunnelManager {
         return found
     }
 
+    /// Why this copy of the app cannot use VPN at all, if it cannot:
+    /// `no_extension` (the PacketTunnel extension was stripped from the bundle)
+    /// or `unsigned` (signed without the Network Extension capability). iOS
+    /// then refuses to add a VPN configuration and never shows its prompt, so
+    /// the app has to say why itself.
+    static func problem() -> String? {
+        let fm = FileManager.default
+        if let plugins = Bundle.main.builtInPlugInsURL,
+           !fm.fileExists(atPath: plugins.appendingPathComponent("PacketTunnel.appex").path)
+        {
+            return "no_extension"
+        }
+        // Development and sideloaded copies carry their provisioning profile;
+        // App Store copies do not, and are signed by Apple with the capability.
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let start = data.range(of: Data("<?xml".utf8)),
+              let end = data.range(of: Data("</plist>".utf8)),
+              let plist = try? PropertyListSerialization.propertyList(
+                  from: data.subdata(in: start.lowerBound ..< end.upperBound), format: nil
+              ) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any]
+        else { return nil }
+        let providers = entitlements["com.apple.developer.networking.networkextension"] as? [String] ?? []
+        return providers.contains("packet-tunnel-provider") ? nil : "unsigned"
+    }
+
     /// Creates the VPN configuration if needed; iOS asks the user to allow it.
+    /// Returns `ok`, or why not: `reason` is `unsigned`, `no_extension` or
+    /// `denied` (the user said no, or iOS refused), with iOS's own words in `detail`.
     @MainActor
-    func prepare() async -> Bool {
+    func prepare() async -> [String: Any] {
+        if let problem = Self.problem() {
+            return ["ok": false, "reason": problem]
+        }
         do {
             let existing = try await loadManager()
             let manager = existing ?? NETunnelProviderManager()
@@ -66,10 +98,10 @@ final class TunnelManager {
             }
             self.manager = manager
             observe(manager)
-            return true
+            return ["ok": true]
         } catch {
             NSLog("BoxPilot: VPN configuration: %@", error.localizedDescription)
-            return false
+            return ["ok": false, "reason": "denied", "detail": error.localizedDescription]
         }
     }
 
