@@ -179,7 +179,8 @@ function AndroidScreen({ title, root, modal, actions = [], search, scroll = true
         {modal ? (
           <Appbar.Action icon="close" accessibilityLabel={tr('btn.cancel')} onPress={close} />
         ) : root ? null : (
-          <Appbar.BackAction onPress={close} />
+          // Not Appbar.BackAction: it draws its arrow from an icon font the app does not ship.
+          <Appbar.Action icon="back" accessibilityLabel={tr('btn.back')} onPress={close} />
         )}
         <Appbar.Content title={title} />
         {actions.map((a) => (

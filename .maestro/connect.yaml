@@ -6,6 +6,11 @@ appId: io.github.billblueinnit.boxpilot
 - launchApp:
     stopApp: false
 - tapOn: 'Home'
+# The tour left the dashboard scrolled to its end.
+- scrollUntilVisible:
+    element:
+      id: 'connect'
+    direction: UP
 - tapOn:
     id: 'connect'
 - extendedWaitUntil:
