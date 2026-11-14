@@ -1,19 +1,20 @@
 [package]
 name = "boxpilot_bridge"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 publish = false
 
 [lib]
+# Android loads the shared library; iOS links the static one.
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-flutter_rust_bridge = "=2.13.0"
 # The desktop app's core, unchanged: converter, config generator, engine.
 # Local checkouts override this with a path in .cargo/config.toml (see README).
-boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "d661e1f9c3cff512e945edecd64cde6f2a0c2fcc" }
+boxpilot-core = { git = "https://github.com/BillBlueInnit/boxpilot", rev = "d041479df457bfa2bc010a6400b0384a1107c3d5" }
 anyhow = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
 log = "0.4"
@@ -21,12 +22,10 @@ futures-util = "0.3"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15"
+jni = "0.21"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 oslog = "0.2"
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 
 [profile.release]
 # Size over speed: the bridge does bookkeeping, not packet work (that is libbox).

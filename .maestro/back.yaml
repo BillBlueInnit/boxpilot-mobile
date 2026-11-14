@@ -1,0 +1,16 @@
+# Goes back one page: the system back on Android, the edge swipe on iOS.
+appId: io.github.billblueinnit.boxpilot
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 1%, 50%
+          end: 85%, 50%
+- waitForAnimationToEnd

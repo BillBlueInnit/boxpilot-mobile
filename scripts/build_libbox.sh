@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Builds sing-box's libbox for the app: android/libs/libbox.aar or ios/Libbox.xcframework.
+# Builds sing-box's libbox for the app:
 #
-#   scripts/build_libbox.sh android|apple
+#   scripts/build_libbox.sh android   -> modules/boxpilot-core/android/libs/libbox.aar
+#   scripts/build_libbox.sh apple     -> native/ios/Libbox.xcframework (on a Mac)
 #
 # Needs Go, the SagerNet gomobile fork (installed here if missing) and, for Android,
 # ANDROID_HOME with an NDK. Uses the build tags of the official sing-box apps.
+# The version here is also app.json's BoxPilotCoreVersion; keep them the same.
 set -euo pipefail
 
 SING_BOX_VERSION="${SING_BOX_VERSION:-v1.14.4}"
@@ -39,18 +41,17 @@ case "$target" in
       -target "${LIBBOX_ANDROID_TARGETS:-android/arm64,android/arm,android/amd64}" \
       -androidapi 24 -javapkg=io.nekohasekai -libname=box \
       -trimpath -buildvcs=false -ldflags "$ldflags" -tags "$tags" ./experimental/libbox
-    mkdir -p "$root/android/app/libs"
-    cp "$work/libbox.aar" "$root/android/app/libs/libbox.aar"
-    echo "libbox.aar -> android/app/libs/"
+    mkdir -p "$root/modules/boxpilot-core/android/libs"
+    cp "$work/libbox.aar" "$root/modules/boxpilot-core/android/libs/libbox.aar"
+    echo "libbox.aar -> modules/boxpilot-core/android/libs/"
     ;;
   apple)
     gomobile bind -v -target "${LIBBOX_APPLE_TARGETS:-ios,iossimulator}" -libname=box \
-      -tags-not-macos=with_low_memory -iosversion=15.0 \
+      -tags-not-macos=with_low_memory -iosversion=16.4 \
       -trimpath -buildvcs=false -ldflags "$ldflags" -tags "$tags,with_dhcp,grpcnotrace" ./experimental/libbox
-    rm -rf "$root/ios/Libbox.xcframework"
-    mv Libbox.xcframework "$root/ios/Libbox.xcframework"
-    /usr/libexec/PlistBuddy -c "Set :BoxPilotCoreVersion ${SING_BOX_VERSION#v}" "$root/ios/Runner/Info.plist"
-    echo "Libbox.xcframework -> ios/"
+    rm -rf "$root/native/ios/Libbox.xcframework"
+    mv Libbox.xcframework "$root/native/ios/Libbox.xcframework"
+    echo "Libbox.xcframework -> native/ios/"
     ;;
   *)
     echo "unknown target: $target" >&2

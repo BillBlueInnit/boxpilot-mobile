@@ -1,0 +1,74 @@
+# A guided tour of the real app for CI: imports a subscription through a
+# provider-style link, then walks the pages in light and dark. Screenshots
+# land in the folder Maestro runs in.
+#
+#   maestro test -e IMPORT_LINK='boxpilot://install-config?url=…&name=CI%20Test' .maestro/tour.yaml
+appId: io.github.billblueinnit.boxpilot
+---
+- launchApp
+- extendedWaitUntil:
+    visible: 'Tools'
+    timeout: 90000
+- takeScreenshot: 01_home_empty
+
+# A provider's one-tap import link opens the editor, prefilled, to confirm.
+- openLink: ${IMPORT_LINK}
+- extendedWaitUntil:
+    visible:
+      id: 'subscription-name'
+    timeout: 30000
+- takeScreenshot: 02_import_editor
+- tapOn: 'Add'
+- extendedWaitUntil:
+    visible: '.*nodes ready.*'
+    timeout: 60000
+- takeScreenshot: 03_home_ready
+- scrollUntilVisible:
+    element: 'Logs'
+    direction: DOWN
+- takeScreenshot: 04_home_scrolled
+
+- tapOn: 'Subscriptions'
+- assertVisible: 'CI Test'
+- takeScreenshot: 05_subscriptions
+- tapOn: 'CI Test'
+- extendedWaitUntil:
+    visible: '.*CI Node.*'
+    timeout: 20000
+- takeScreenshot: 06_subscription_detail
+- runFlow: back.yaml
+
+- tapOn: 'Proxies'
+- assertVisible: 'Not connected'
+- takeScreenshot: 07_proxies_offline
+
+- tapOn: 'Settings'
+- assertVisible: 'Language'
+- takeScreenshot: 08_settings
+- scrollUntilVisible:
+    element: 'Version'
+    direction: DOWN
+- takeScreenshot: 09_settings_end
+
+# Rules, pushed from Settings.
+- scrollUntilVisible:
+    element: 'Rules'
+    direction: UP
+- tapOn: 'Rules'
+- assertVisible: 'Bypass mainland China'
+- takeScreenshot: 10_rules
+- runFlow: back.yaml
+
+# The app's own theme setting, independent of the system's.
+- scrollUntilVisible:
+    element: 'Theme'
+    direction: UP
+- tapOn: 'Theme'
+- tapOn: 'Dark'
+- takeScreenshot: 11_settings_dark
+- tapOn: 'Home'
+- takeScreenshot: 12_home_dark
+- tapOn: 'Settings'
+- tapOn: 'Theme'
+- tapOn: 'Light'
+- tapOn: 'Home'

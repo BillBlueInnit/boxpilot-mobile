@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "BoxPilot",
+    "slug": "boxpilot",
+    "version": "0.2.0",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
+    "scheme": [
+      "boxpilot",
+      "clash",
+      "clashmeta",
+      "sing-box"
+    ],
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "io.github.billblueinnit.boxpilot",
+      "supportsTablet": true,
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon-dark.png",
+        "tinted": "./assets/images/icon-tinted.png"
+      },
+      "infoPlist": {
+        "BoxPilotCoreVersion": "1.14.4",
+        "CFBundleLocalizations": [
+          "en",
+          "zh-Hans",
+          "zh-Hant",
+          "ru"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.networking.networkextension": [
+          "packet-tunnel-provider"
+        ],
+        "com.apple.security.application-groups": [
+          "group.io.github.billblueinnit.boxpilot"
+        ]
+      }
+    },
+    "android": {
+      "package": "io.github.billblueinnit.boxpilot",
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
+        "backgroundImage": "./assets/images/adaptive-background.png",
+        "monochromeImage": "./assets/images/adaptive-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#5B6FF6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a",
+              "x86_64"
+            ]
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
+      "./plugins/with-boxpilot"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

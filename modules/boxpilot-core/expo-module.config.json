@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["BoxpilotCoreModule"]
+  },
+  "android": {
+    "modules": ["io.github.billblueinnit.boxpilot.core.BoxpilotCoreModule"]
+  }
+}

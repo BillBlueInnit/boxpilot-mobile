@@ -1,0 +1,44 @@
+# Android only (the iOS simulator cannot run a packet tunnel): connects the VPN
+# through the test node on the runner, waits for a latency measured through it,
+# and disconnects. VPN consent is granted beforehand with `adb appops`.
+appId: io.github.billblueinnit.boxpilot
+---
+- launchApp:
+    stopApp: false
+- tapOn: 'Home'
+- tapOn:
+    id: 'connect'
+- extendedWaitUntil:
+    visible: 'Connected'
+    timeout: 90000
+- takeScreenshot: 13_home_connected
+
+- tapOn: 'Proxies'
+- extendedWaitUntil:
+    visible: '.*CI Node US.*'
+    timeout: 30000
+# Node tests run by themselves once connected; a latency proves traffic gets through.
+- extendedWaitUntil:
+    visible: '[0-9]+ ms'
+    timeout: 90000
+- takeScreenshot: 14_proxies_connected
+
+- tapOn: 'Home'
+- takeScreenshot: 15_home_traffic
+- scrollUntilVisible:
+    element: 'Connections'
+    direction: DOWN
+- tapOn: 'Connections'
+- takeScreenshot: 16_connections
+- runFlow: back.yaml
+
+- scrollUntilVisible:
+    element:
+      id: 'connect'
+    direction: UP
+- tapOn:
+    id: 'connect'
+- extendedWaitUntil:
+    visible: 'Disconnected'
+    timeout: 30000
+- takeScreenshot: 17_home_disconnected

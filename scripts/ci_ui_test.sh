@@ -1,91 +1,58 @@
 #!/usr/bin/env bash
-# Runs integration_test/app_test.dart on a device and screenshots each step.
+# Runs the Maestro tours against an installed build and collects screenshots.
 #
-#   scripts/ci_ui_test.sh android|ios <device-id> <out-dir> [flutter test args…]
+#   scripts/ci_ui_test.sh android <apk> <out-dir>
+#   scripts/ci_ui_test.sh ios <simulator-udid> <out-dir>
 #
-# `flutter test` passes the device's output on in batches, too late to time a
-# screenshot, so the test and this script hand off through files instead: the
-# test creates <app temp>/boxpilot-shots/<name> and waits; this script sees it,
-# takes the screenshot (native views such as the iOS 26 tab bar included) and
-# deletes the file. On Android the same loop grants VPN consent and the
-# notification permission as soon as the app is installed.
+# A subscription for the tour is served from this machine: the node in
+# BOXPILOT_TEST_NODE (an ss:// link to a server on the runner; Android), or a
+# placeholder. The emulator reaches the runner at 10.0.2.2, the simulator at
+# 127.0.0.1.
 set -uo pipefail
 
-platform="$1"; device="$2"; out="$3"; shift 3
+platform="$1"; target="$2"; out="$3"
+root="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 package=io.github.billblueinnit.boxpilot
-log="$out/flutter-test.log"
+export PATH="$HOME/.maestro/bin:$PATH"
+export MAESTRO_CLI_NO_ANALYTICS=1 MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
 
-watch_android() {
-  local granted=0
-  while :; do
-    if [ "$granted" = 0 ] && adb -s "$device" shell pm path "$package" < /dev/null 2>/dev/null | grep -q package:; then
-      adb -s "$device" shell appops set "$package" ACTIVATE_VPN allow < /dev/null && granted=1
-      adb -s "$device" shell pm grant "$package" android.permission.POST_NOTIFICATIONS < /dev/null 2>/dev/null || true
-    fi
-    for name in $(adb -s "$device" shell run-as "$package" ls cache/boxpilot-shots < /dev/null 2>/dev/null | tr -d '\r'); do
-      adb -s "$device" exec-out screencap -p < /dev/null > "$out/$name.png"
-      adb -s "$device" shell run-as "$package" rm "cache/boxpilot-shots/$name" < /dev/null
-    done
-    sleep 0.5
-  done
-}
-
-watch_ios() {
-  while :; do
-    data=$(xcrun simctl get_app_container "$device" "$package" data 2>/dev/null)
-    if [ -n "$data" ] && [ -d "$data/tmp/boxpilot-shots" ]; then
-      for f in "$data/tmp/boxpilot-shots"/*; do
-        [ -e "$f" ] || continue
-        name=$(basename "$f")
-        # One retry; why a screenshot failed goes to watcher.log.
-        xcrun simctl io "$device" screenshot "$out/$name.png" >> "$out/watcher.log" 2>&1 \
-          || { sleep 1; xcrun simctl io "$device" screenshot "$out/$name.png" >> "$out/watcher.log" 2>&1; } \
-          || echo "screenshot $name failed" >> "$out/watcher.log"
-        rm -f "$f"
-      done
-    fi
-    sleep 0.5
-  done
-}
+node="${BOXPILOT_TEST_NODE:-ss://MjAyMi1ibGFrZTMtYWVzLTEyOC1nY206YWFhYWFhYWFhYWFhYWFhYWFhYWFhQT09@203.0.113.7:8388#CI%20Node%20US}"
+serve="$(mktemp -d)"
+printf '%s\n%s\n' "$node" "${node/\#/#2-}" > "$serve/sub.txt"
+(cd "$serve" && exec python3 -m http.server 18000 --bind 0.0.0.0) > "$out/http.log" 2>&1 &
+server=$!
+trap 'kill "$server" 2> /dev/null' EXIT
 
 if [ "$platform" = android ]; then
+  host=10.0.2.2
+  adb install -r "$target" < /dev/null
+  # VPN consent and the notification permission: what the user would grant on Connect.
+  adb shell appops set "$package" ACTIVATE_VPN allow < /dev/null
+  adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS < /dev/null || true
   # A slow emulator's "app isn't responding" dialogs would cover screenshots.
-  adb -s "$device" shell settings put global hide_error_dialogs 1 < /dev/null || true
-  watch_android &
+  adb shell settings put global hide_error_dialogs 1 < /dev/null || true
 else
-  watch_ios &
+  host=127.0.0.1
 fi
-watcher=$!
+link="boxpilot://install-config?url=http%3A%2F%2F$host%3A18000%2Fsub.txt&name=CI%20Test"
 
-flutter test integration_test/app_test.dart -d "$device" "$@" < /dev/null 2>&1 | tee "$log" &
-test_job=$!
+cd "$out"
+status=0
+maestro test -e IMPORT_LINK="$link" "$root/.maestro/tour.yaml" < /dev/null 2>&1 | tee "$out/maestro-tour.log"
+[ "${PIPESTATUS[0]}" = 0 ] || status=1
+if [ "$platform" = android ] && [ -n "${BOXPILOT_TEST_NODE:-}" ] && [ "$status" = 0 ]; then
+  maestro test "$root/.maestro/connect.yaml" < /dev/null 2>&1 | tee "$out/maestro-connect.log"
+  [ "${PIPESTATUS[0]}" = 0 ] || status=1
+fi
 
-# A hung app would otherwise run into the job's limit with nothing to show for
-# it; stop in time to keep a last screenshot and the device log.
-deadline=$((SECONDS + ${UI_TEST_TIMEOUT:-1500}))
-while kill -0 "$test_job" 2> /dev/null; do
-  if [ "$SECONDS" -ge "$deadline" ]; then
-    echo "UI test still running after ${UI_TEST_TIMEOUT:-1500}s; stopping it." | tee -a "$log"
-    if [ "$platform" = android ]; then
-      adb -s "$device" exec-out screencap -p < /dev/null > "$out/zz_timeout.png"
-    else
-      xcrun simctl io "$device" screenshot "$out/zz_timeout.png" > /dev/null 2>&1
-    fi
-    pkill -f 'flutter_tools.snapshot test' || true
-    break
-  fi
-  sleep 5
-done
-wait "$test_job"
-status=$?
-[ "$SECONDS" -ge "$deadline" ] && status=1
-
-kill "$watcher" 2> /dev/null
 if [ "$platform" = android ]; then
-  adb -s "$device" logcat -d < /dev/null > "$out/logcat.txt" 2>&1 || true
+  adb logcat -d < /dev/null > "$out/logcat.txt" 2>&1 || true
 else
-  xcrun simctl spawn "$device" log show --last 40m --style compact --predicate 'process == "Runner"' \
+  xcrun simctl spawn "$target" log show --last 30m --style compact --predicate 'process == "BoxPilot"' \
     > "$out/device.log" 2>&1 || true
 fi
+# Maestro's own record of a failure (screenshot and view hierarchy).
+cp -r "$HOME/.maestro/tests" "$out/maestro-debug" 2> /dev/null || true
 exit "$status"

@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, react-native]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -11,22 +11,33 @@ permissions:
   contents: write
 
 env:
-  FLUTTER_VERSION: 3.47.8
+  NODE_VERSION: '24'
   SING_BOX_VERSION: v1.14.4
   GO_VERSION: '1.25'
+  NDK_VERSION: 28.2.13676358
+  # Above every build of the Flutter app, so a release updates it in place.
+  BUILD_NUMBER: ${{ github.run_number }}00
+  CI: '1'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-      - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Check the Rust bridge
+        run: cargo check --manifest-path rust/Cargo.toml
 
   android:
     needs: test
@@ -37,31 +48,40 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+          key: android
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
       - name: Install NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
       - name: Cache libbox
         id: libbox
         uses: actions/cache@v4
         with:
-          path: android/app/libs/libbox.aar
+          path: modules/boxpilot-core/android/libs/libbox.aar
           key: libbox-android-${{ env.SING_BOX_VERSION }}-${{ hashFiles('scripts/build_libbox.sh') }}
       - name: Build libbox
         if: steps.libbox.outputs.cache-hit != 'true'
-        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" bash scripts/build_libbox.sh android
+        run: bash scripts/build_libbox.sh android
+      - name: Build the Rust bridge
+        run: bash scripts/build_rust.sh android
+      - run: npm ci
       - name: Release keystore
         env:
           KEYSTORE: ${{ secrets.BOXPILOT_KEYSTORE_BASE64 }}
@@ -69,19 +89,23 @@ jobs:
         run: |
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "BOXPILOT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install
       - name: Build APKs
         env:
           BOXPILOT_KEYSTORE_PASSWORD: ${{ secrets.BOXPILOT_KEYSTORE_PASSWORD }}
           BOXPILOT_KEY_ALIAS: ${{ secrets.BOXPILOT_KEY_ALIAS }}
           BOXPILOT_KEY_PASSWORD: ${{ secrets.BOXPILOT_KEY_PASSWORD }}
+          NODE_ENV: production
         # One APK per ABI (most phones want arm64-v8a); a universal APK would carry three cores.
         run: |
-          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --build-number=${{ github.run_number }}
+          (cd android && ./gradlew assembleRelease --console=plain)
           mkdir -p dist
-          version=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([^+]+).*/\1/')
+          version=$(node -p "require('./app.json').expo.version")
           for abi in arm64-v8a armeabi-v7a x86_64; do
-            cp "build/app/outputs/flutter-apk/app-$abi-release.apk" "dist/BoxPilot-$version-android-$abi.apk"
+            cp "android/app/build/outputs/apk/release/app-$abi-release.apk" "dist/BoxPilot-$version-android-$abi.apk"
           done
+          ls -la dist
       # Only APKs signed with the release key are published; a debug-signed
       # APK could never be updated by a later, properly signed one.
       - uses: actions/upload-artifact@v4
@@ -100,42 +124,63 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+          key: ios
       - name: Cache libbox
         id: libbox
         uses: actions/cache@v4
         with:
-          path: ios/Libbox.xcframework
+          path: native/ios/Libbox.xcframework
           key: libbox-ios-${{ env.SING_BOX_VERSION }}-${{ hashFiles('scripts/build_libbox.sh') }}
       - name: Build libbox
         if: steps.libbox.outputs.cache-hit != 'true'
         env:
           LIBBOX_APPLE_TARGETS: ios
         run: bash scripts/build_libbox.sh apple
+      - name: Build the Rust bridge
+        env:
+          RUST_IOS_TARGETS: aarch64-apple-ios
+        run: bash scripts/build_rust.sh ios
+      - run: npm ci
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios
       - name: Add the PacketTunnel extension
         run: |
           gem list -i xcodeproj > /dev/null || sudo gem install xcodeproj
-          ruby ios/scripts/add_packet_tunnel.rb
+          ruby native/ios/add_packet_tunnel.rb
       - name: Build unsigned IPA
+        env:
+          NODE_ENV: production
         run: |
-          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/symbols --build-number=${{ github.run_number }}
-          version=$(grep '^version:' pubspec.yaml | sed -E 's/version: ([^+]+).*/\1/')
+          set -o pipefail
+          xcodebuild -workspace ios/BoxPilot.xcworkspace -scheme BoxPilot -configuration Release \
+            -sdk iphoneos -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee xcodebuild.log | grep -E "^(error|warning: unable|\*\*|▸|/.*error:)|error:" || true
+          test -d build/ios/Build/Products/Release-iphoneos/BoxPilot.app
+          version=$(node -p "require('./app.json').expo.version")
           mkdir -p dist/Payload
-          cp -R build/ios/iphoneos/Runner.app dist/Payload/
+          cp -R build/ios/Build/Products/Release-iphoneos/BoxPilot.app dist/Payload/
           (cd dist && zip -qry "BoxPilot-$version-ios-unsigned.ipa" Payload && rm -rf Payload)
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-build-log
+          path: xcodebuild.log
       - uses: actions/upload-artifact@v4
         with:
           name: ios
@@ -145,7 +190,7 @@ jobs:
   # VPN connection through a test node on this runner, with screenshots.
   ui-android:
     needs: test
-    timeout-minutes: 50
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,36 +203,55 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+          key: android-x86_64
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
       - name: Install NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
       - name: Cache libbox
         id: libbox
         uses: actions/cache@v4
         with:
-          path: android/app/libs/libbox.aar
+          path: modules/boxpilot-core/android/libs/libbox.aar
           key: libbox-android-${{ env.SING_BOX_VERSION }}-${{ hashFiles('scripts/build_libbox.sh') }}
       - name: Build libbox
         if: steps.libbox.outputs.cache-hit != 'true'
-        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" bash scripts/build_libbox.sh android
+        run: bash scripts/build_libbox.sh android
+      - name: Build the Rust bridge
+        env:
+          RUST_ANDROID_ABIS: x86_64
+        run: bash scripts/build_rust.sh android
+      - run: npm ci
+      - name: Build the APK
+        env:
+          NODE_ENV: production
+        run: |
+          npx expo prebuild --platform android --no-install
+          (cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --console=plain)
+      - name: Install Maestro
+        run: curl -fsSL "https://get.maestro.mobile.dev" | bash
       - name: Test node
         run: |
           curl -sL "https://github.com/SagerNet/sing-box/releases/download/$SING_BOX_VERSION/sing-box-${SING_BOX_VERSION#v}-linux-amd64.tar.gz" | tar xz
           pw=$(openssl rand -base64 16)
-          printf '{"log":{"level":"info"},"inbounds":[{"type":"shadowsocks","listen":"127.0.0.1","listen_port":18388,"method":"2022-blake3-aes-128-gcm","password":"%s"}],"outbounds":[{"type":"direct"}]}' "$pw" > server.json
+          printf '{"log":{"level":"info"},"inbounds":[{"type":"shadowsocks","listen":"0.0.0.0","listen_port":18388,"method":"2022-blake3-aes-128-gcm","password":"%s"}],"outbounds":[{"type":"direct"}]}' "$pw" > server.json
           nohup ./sing-box-*/sing-box run -c server.json > sing-box-server.log 2>&1 &
           user=$(printf '%s' "2022-blake3-aes-128-gcm:$pw" | base64 -w0 | tr '+/' '-_' | tr -d '=')
           echo "BOXPILOT_TEST_NODE=ss://$user@10.0.2.2:18388#CI%20Node%20US" >> "$GITHUB_ENV"
@@ -199,7 +263,7 @@ jobs:
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
-          script: bash scripts/ci_ui_test.sh android emulator-5554 screenshots/android --dart-define=BOXPILOT_TEST_NODE=${{ env.BOXPILOT_TEST_NODE }}
+          script: bash scripts/ci_ui_test.sh android android/app/build/outputs/apk/release/app-x86_64-release.apk screenshots/android
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -208,24 +272,32 @@ jobs:
             screenshots/android
             sing-box-server.log
 
-  # The real app on an iOS 26 simulator (native Liquid Glass bars included). The
-  # simulator cannot run a packet tunnel, so this covers the UI only.
+  # The real app on an iOS 26 simulator, native bars included. The simulator
+  # cannot run a packet tunnel, so this covers the UI only.
   ui-ios:
     needs: test
-    timeout-minutes: 50
+    timeout-minutes: 60
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
+          key: ios-sim
+      - name: Build the Rust bridge
+        env:
+          RUST_IOS_TARGETS: aarch64-apple-ios-sim
+        run: bash scripts/build_rust.sh ios
+      - run: npm ci
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios
       - name: Boot a simulator
         run: |
           udid=$(xcrun simctl list devices available -j | python3 -c '
@@ -239,12 +311,26 @@ jobs:
           xcrun simctl spawn "$udid" defaults write com.apple.Preferences DidShowContinuousPathIntroduction -bool true || true
           xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
           echo "SIM=$udid" >> "$GITHUB_ENV"
+      - name: Build for the simulator
+        env:
+          NODE_ENV: production
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/BoxPilot.xcworkspace -scheme BoxPilot -configuration Release \
+            -sdk iphonesimulator -destination "id=$SIM" -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO build | tee xcodebuild.log | grep -E "error:|\*\*" || true
+          test -d build/ios/Build/Products/Release-iphonesimulator/BoxPilot.app
+          xcrun simctl install "$SIM" build/ios/Build/Products/Release-iphonesimulator/BoxPilot.app
+      - name: Install Maestro
+        run: curl -fsSL "https://get.maestro.mobile.dev" | bash
       - run: bash scripts/ci_ui_test.sh ios "$SIM" screenshots/ios
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: screenshots-ios
-          path: screenshots/ios
+          path: |
+            screenshots/ios
+            xcodebuild.log
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'io.github.billblueinnit.boxpilot'
+version = '0.2.0'
+
+android {
+  namespace "io.github.billblueinnit.boxpilot.core"
+  defaultConfig {
+    versionCode 1
+    versionName '0.2.0'
+    // libbox and the Rust bridge call these classes by name.
+    consumerProguardFiles 'proguard-rules.pro'
+  }
+}
+
+dependencies {
+  // sing-box, built by scripts/build_libbox.sh into this module's libs folder.
+  // A local .aar cannot be a library's `implementation` file dependency, so it is
+  // compiled against here and packaged by the app (see plugins/with-boxpilot.js).
+  compileOnly files('libs/libbox.aar')
+  implementation 'androidx.core:core-ktx:1.17.0'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+}
