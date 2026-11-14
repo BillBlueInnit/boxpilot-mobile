@@ -147,12 +147,13 @@ export default function EditRule() {
         </Section>
       ) : null}
 
-      <Section footer={t('editor.interval_hint')}>
+      <Section>
         <Field
           label={t('editor.interval')}
           value={hours}
           onChange={setHours}
           keyboardType="number-pad"
+          helper={t('editor.interval_hint')}
           error={shown(errors.interval)}
         />
       </Section>

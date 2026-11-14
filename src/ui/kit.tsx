@@ -6,9 +6,10 @@
 
 import NativeSegmentedControl from '@react-native-segmented-control/segmented-control';
 import { Stack, useRouter } from 'expo-router';
-import { Children, type ComponentType, type ReactNode, isValidElement, useState } from 'react';
+import { Children, type ComponentType, type ReactNode, isValidElement, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   type KeyboardTypeOptions,
   Pressable,
   RefreshControl,
@@ -25,7 +26,6 @@ import {
   Appbar,
   Menu,
   Button as PaperButton,
-  Switch as PaperSwitch,
   TextInput as PaperTextInput,
   Searchbar,
   SegmentedButtons,
@@ -34,7 +34,7 @@ import {
 import { tr } from '../i18n';
 import { type Option, askChoice, askText } from './dialogs';
 import { ICONS, Icon, type IconName } from './icons';
-import { isIOS, usePalette } from './theme';
+import { isIOS, useAppTheme, usePalette } from './theme';
 
 // The library's class typings predate React 19's.
 const SegmentedControl = NativeSegmentedControl as unknown as ComponentType<{
@@ -475,7 +475,57 @@ export function Toggle({ value, onChange, disabled }: { value: boolean; onChange
   return isIOS ? (
     <Switch value={value} onValueChange={onChange} disabled={disabled} />
   ) : (
-    <PaperSwitch value={value} onValueChange={onChange} disabled={disabled} />
+    <MaterialSwitch value={value} onChange={onChange} disabled={disabled} />
+  );
+}
+
+/**
+ * The Material 3 switch: a 52 x 32 dp track with a thumb that grows when on.
+ * (Paper's switch is Android's older widget, drawn in the Material 2 style.)
+ */
+function MaterialSwitch({ value, onChange, disabled }: { value: boolean; onChange?: (v: boolean) => void; disabled?: boolean }) {
+  const { colors } = useAppTheme().paper;
+  const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
+  useEffect(() => {
+    Animated.timing(progress, { toValue: value ? 1 : 0, duration: 160, useNativeDriver: false }).start();
+  }, [value, progress]);
+  const size = progress.interpolate({ inputRange: [0, 1], outputRange: [16, 24] });
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled || !onChange}
+      hitSlop={8}
+      onPress={() => onChange?.(!value)}
+      style={{ opacity: disabled ? 0.38 : 1 }}>
+      <Animated.View
+        style={{
+          width: 52,
+          height: 32,
+          borderRadius: 16,
+          borderWidth: 2,
+          justifyContent: 'center',
+          borderColor: progress.interpolate({ inputRange: [0, 1], outputRange: [colors.outline, colors.primary] }),
+          backgroundColor: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [colors.surfaceVariant, colors.primary],
+          }),
+        }}>
+        <Animated.View
+          style={{
+            width: size,
+            height: size,
+            borderRadius: 12,
+            // The thumb's centre travels from 14 dp to 34 dp inside the 2 dp border.
+            marginLeft: progress.interpolate({ inputRange: [0, 1], outputRange: [6, 22] }),
+            backgroundColor: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [colors.outline, colors.onPrimary],
+            }),
+          }}
+        />
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -724,11 +774,14 @@ export function Field({
   error,
   autoFocus,
   monospace,
+  helper,
   testID,
 }: {
   label: string;
   value: string;
   onChange: (text: string) => void;
+  /** A note under the field. */
+  helper?: string;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
   multiline?: boolean;
@@ -758,7 +811,11 @@ export function Field({
           error={!!error}
           style={[multiline ? { minHeight: 120 } : null, font]}
         />
-        {error ? <Text style={{ fontSize: 12, color: palette.bad, marginTop: 4, marginLeft: 16 }}>{error}</Text> : null}
+        {error ?? helper ? (
+          <Text style={{ fontSize: 12, color: error ? palette.bad : palette.secondary, marginTop: 4, marginLeft: 16 }}>
+            {error ?? helper}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -797,7 +854,9 @@ export function Field({
           {input}
         </View>
       )}
-      {error ? <Text style={{ fontSize: 13, color: palette.bad, marginTop: 6 }}>{error}</Text> : null}
+      {error ?? helper ? (
+        <Text style={{ fontSize: 13, color: error ? palette.bad : palette.secondary, marginTop: 6 }}>{error ?? helper}</Text>
+      ) : null}
     </View>
   );
 }
