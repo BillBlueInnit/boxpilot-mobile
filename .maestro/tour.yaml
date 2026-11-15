@@ -24,6 +24,14 @@ appId: io.github.billblueinnit.boxpilot
 
 # A provider's one-tap import link opens the editor, prefilled, to confirm.
 - openLink: ${IMPORT_LINK}
+# iOS asks before it hands a link to an app.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: 'Open'
+          optional: true
 - extendedWaitUntil:
     visible:
       id: 'subscription-name'
