@@ -46,6 +46,7 @@ export default function SettingsPage() {
     <Screen title={t('nav.settings')} root>
       <Section header={t('set.general')} footer={isIOS ? undefined : t('set.accent_desc_mobile')}>
         <ChoiceRow
+          testID="setting-language"
           title={t('set.language')}
           icon={{ name: 'language', color: tint('#007AFF') }}
           value={get('language', 'System')}
@@ -56,6 +57,7 @@ export default function SettingsPage() {
           onChange={(v) => set('language', v)}
         />
         <ChoiceRow
+          testID="setting-theme"
           title={t('set.theme')}
           icon={{ name: 'theme', color: tint('#5856D6') }}
           value={get('theme', 'system')}

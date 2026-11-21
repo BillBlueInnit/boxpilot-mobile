@@ -63,6 +63,8 @@ export const ICONS = {
   stop: icon('stop.circle', 'stop_circle'),
   enable: icon('checkmark.circle', 'check_circle'),
   disable: icon('circle', 'radio_button_unchecked'),
+  checked: icon('checkmark.square.fill', 'check_box'),
+  unchecked: icon('square', 'check_box_outline_blank'),
 } as const;
 
 export type IconName = keyof typeof ICONS;

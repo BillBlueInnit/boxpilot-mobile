@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Checkbox } from 'react-native-paper';
 
 import Native, { type PerAppMode } from '../../modules/boxpilot-core';
 import { useT } from '@/core/hooks';
 import { reloadCore } from '@/core/store';
+import { Icon } from '@/ui/icons';
 import { EmptyState, GUTTER, Screen, Segmented } from '@/ui/kit';
 import { usePalette } from '@/ui/theme';
 
@@ -134,7 +134,12 @@ export default function PerApp() {
                     {item.package}
                   </Text>
                 </View>
-                <Checkbox status={checked ? 'checked' : 'unchecked'} onPress={toggle} />
+                <Icon
+                  name={checked ? 'checked' : 'unchecked'}
+                  size={24}
+                  color={checked ? palette.accent : palette.secondary}
+                  style={{ margin: 8 }}
+                />
               </Pressable>
             </View>
           );

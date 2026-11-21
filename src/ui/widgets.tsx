@@ -171,6 +171,7 @@ function AndroidNotice({ notice }: { notice: Notice | null }) {
       visible={shown != null}
       duration={shown?.kind === 'error' ? 5000 : 2800}
       onDismiss={dismiss}
+      icon="close"
       onIconPress={shown?.kind === 'error' ? dismiss : undefined}
       wrapperStyle={{ bottom: 88 }}>
       {shown?.text ?? ''}

@@ -139,27 +139,30 @@ export default function Rules() {
         />
       </Section>
 
-      <Section header={t('rules.sets')}>
-        {providers.map((p) => (
-          <Row
-            key={p.id}
-            title={p.name}
-            subtitle={
-              p.last_error
-                ? p.last_error
-                : [
-                    targetLabel(p),
-                    t('rules.count', [p.rule_count]),
-                    p.last_update ? t('meta.updated', [formatAgo(p.last_update)]) : t('subs.never_updated'),
-                  ].join(' · ')
-            }
-            subtitleLines={2}
-            onPress={() => void menu(p)}
-            trailing={<Toggle value={p.enabled} onChange={(v) => void engine.setRuleProvidersEnabled([p.id], v)} />}
-          />
-        ))}
-      </Section>
-      {providers.length === 0 ? <EmptyState icon="rules" title={t('rules.empty_title')} message={t('rules.empty_hint')} /> : null}
+      {providers.length > 0 ? (
+        <Section header={t('rules.sets')}>
+          {providers.map((p) => (
+            <Row
+              key={p.id}
+              title={p.name}
+              subtitle={
+                p.last_error
+                  ? p.last_error
+                  : [
+                      targetLabel(p),
+                      t('rules.count', [p.rule_count]),
+                      p.last_update ? t('meta.updated', [formatAgo(p.last_update)]) : t('subs.never_updated'),
+                    ].join(' · ')
+              }
+              subtitleLines={2}
+              onPress={() => void menu(p)}
+              trailing={<Toggle value={p.enabled} onChange={(v) => void engine.setRuleProvidersEnabled([p.id], v)} />}
+            />
+          ))}
+        </Section>
+      ) : (
+        <EmptyState icon="rules" title={t('rules.empty_title')} message={t('rules.empty_hint')} />
+      )}
     </Screen>
   );
 }

@@ -133,7 +133,12 @@ final class TunnelPlatform: NSObject, LibboxPlatformInterfaceProtocol, LibboxCom
             var dns: NEDNSSettings?
             if options.getDNSMode()?.value != LibboxDNSModeDisabled {
                 let servers = collect(try options.getDNSServerAddress())
-                if !servers.isEmpty { dns = NEDNSSettings(servers: servers) }
+                if !servers.isEmpty {
+                    let dnsSettings = NEDNSSettings(servers: servers)
+                    // Route all DNS through the tunnel, even behind a home router whose LAN DNS is more specific.
+                    dnsSettings.matchDomains = [""]
+                    dns = dnsSettings
+                }
             }
 
             var v4Addresses: [String] = [], v4Masks: [String] = []

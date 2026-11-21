@@ -36,11 +36,12 @@ if [ "$platform" = android ]; then
 else
   host=127.0.0.1
 fi
+sub_url="http://$host:18000/sub.txt"
 link="boxpilot://install-config?url=http%3A%2F%2F$host%3A18000%2Fsub.txt&name=CI%20Test"
 
 cd "$out"
 status=0
-maestro test -e IMPORT_LINK="$link" "$root/.maestro/tour.yaml" < /dev/null 2>&1 | tee "$out/maestro-tour.log"
+maestro test -e IMPORT_LINK="$link" -e SUB_URL="$sub_url" "$root/.maestro/tour.yaml" < /dev/null 2>&1 | tee "$out/maestro-tour.log"
 [ "${PIPESTATUS[0]}" = 0 ] || status=1
 if [ "$platform" = android ] && [ -n "${BOXPILOT_TEST_NODE:-}" ] && [ "$status" = 0 ]; then
   maestro test "$root/.maestro/connect.yaml" < /dev/null 2>&1 | tee "$out/maestro-connect.log"

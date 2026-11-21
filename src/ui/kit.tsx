@@ -190,6 +190,10 @@ function AndroidScreen({ title, root, modal, actions = [], search, scroll = true
       {search ? (
         <Searchbar
           value={query}
+          // Named icons go through the app's icon set; Paper's defaults come
+          // from an icon font the app does not ship.
+          icon="search"
+          clearIcon="close"
           placeholder={search.placeholder}
           onChangeText={(text) => {
             setQuery(text);
@@ -566,6 +570,7 @@ export function ChoiceRow<T>({
   value,
   options,
   onChange,
+  testID,
 }: {
   title: string;
   /** Explains the choice, in the picker. */
@@ -574,6 +579,7 @@ export function ChoiceRow<T>({
   value: T;
   options: Option<T>[];
   onChange: (v: T) => void;
+  testID?: string;
 }) {
   const current = options.find((o) => o.value === value)?.label ?? String(value);
   return (
@@ -582,6 +588,7 @@ export function ChoiceRow<T>({
       icon={icon}
       value={current}
       chevron
+      testID={testID}
       onPress={async () => {
         const picked = await askChoice({ title, message, options, value });
         if (picked !== undefined && picked !== value) onChange(picked);
@@ -795,7 +802,7 @@ export function Field({
   const font = monospace ? ({ fontFamily: isIOS ? 'Menlo' : 'monospace', fontSize: 13 } as const) : null;
   if (!isIOS) {
     return (
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 }}>
         <PaperTextInput
           testID={testID}
           mode="outlined"

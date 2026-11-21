@@ -22,16 +22,30 @@ appId: io.github.billblueinnit.boxpilot
       - tapOn: 'Connect on launch'
       - tapOn: 'Home'
 
-# A provider's one-tap import link opens the editor, prefilled, to confirm.
-- openLink: ${IMPORT_LINK}
-# iOS asks before it hands a link to an app.
+# Android tests a provider's one-tap import link; iOS opens the same form from
+# the dashboard (iOS 26's SpringBoard "Open in BoxPilot?" prompt rejects
+# synthetic XCUITest taps on the simulator).
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - openLink: ${IMPORT_LINK}
 - runFlow:
     when:
       platform: iOS
     commands:
       - tapOn:
-          text: 'Open'
-          optional: true
+          id: 'add-first'
+      - extendedWaitUntil:
+          visible:
+            id: 'subscription-url'
+          timeout: 30000
+      - tapOn:
+          id: 'subscription-url'
+      - inputText: ${SUB_URL}
+      - tapOn:
+          id: 'subscription-name'
+      - inputText: 'CI Test'
 - extendedWaitUntil:
     visible:
       id: 'subscription-name'
@@ -48,9 +62,11 @@ appId: io.github.billblueinnit.boxpilot
 - takeScreenshot: 04_home_scrolled
 
 - tapOn: 'Subscriptions'
-- assertVisible: 'CI Test'
+- assertVisible:
+    id: 'subscription-CI Test'
 - takeScreenshot: 05_subscriptions
-- tapOn: 'CI Test'
+- tapOn:
+    id: 'subscription-CI Test'
 - extendedWaitUntil:
     visible: '.*CI Node.*'
     timeout: 20000
@@ -62,7 +78,8 @@ appId: io.github.billblueinnit.boxpilot
 - takeScreenshot: 07_proxies_offline
 
 - tapOn: 'Settings'
-- assertVisible: 'Language'
+- assertVisible:
+    id: 'setting-language'
 - takeScreenshot: 08_settings
 - scrollUntilVisible:
     element: 'Version'
@@ -80,14 +97,17 @@ appId: io.github.billblueinnit.boxpilot
 
 # The app's own theme setting, independent of the system's.
 - scrollUntilVisible:
-    element: 'Theme'
+    element:
+      id: 'setting-theme'
     direction: UP
-- tapOn: 'Theme'
+- tapOn:
+    id: 'setting-theme'
 - tapOn: 'Dark'
 - takeScreenshot: 11_settings_dark
 - tapOn: 'Home'
 - takeScreenshot: 12_home_dark
 - tapOn: 'Settings'
-- tapOn: 'Theme'
+- tapOn:
+    id: 'setting-theme'
 - tapOn: 'Light'
 - tapOn: 'Home'

@@ -54,6 +54,10 @@ final class TunnelManager {
     /// then refuses to add a VPN configuration and never shows its prompt, so
     /// the app has to say why itself.
     static func problem() -> String? {
+        #if targetEnvironment(simulator)
+        // The simulator has no PacketTunnel extension; don't show the sideloading warning there.
+        return nil
+        #else
         let fm = FileManager.default
         if let plugins = Bundle.main.builtInPlugInsURL,
            !fm.fileExists(atPath: plugins.appendingPathComponent("PacketTunnel.appex").path)
@@ -73,6 +77,7 @@ final class TunnelManager {
         else { return nil }
         let providers = entitlements["com.apple.developer.networking.networkextension"] as? [String] ?? []
         return providers.contains("packet-tunnel-provider") ? nil : "unsigned"
+        #endif
     }
 
     /// Creates the VPN configuration if needed; iOS asks the user to allow it.
