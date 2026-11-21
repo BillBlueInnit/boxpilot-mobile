@@ -163,12 +163,6 @@ export default function EditSubscription() {
       </Section>
       {remote ? (
         <Section header={t('subs.updates')}>
-          <SwitchRow
-            title={t('editor.auto_update')}
-            subtitle={t('editor.auto_update_desc')}
-            value={sub.auto_update}
-            onChange={(auto_update) => patch({ auto_update })}
-          />
           <Field
             label={t('editor.interval')}
             value={hours}
@@ -176,6 +170,12 @@ export default function EditSubscription() {
             keyboardType="number-pad"
             helper={t('editor.interval_hint')}
             error={shown(errors.interval)}
+          />
+          <SwitchRow
+            title={t('editor.auto_update')}
+            subtitle={t('editor.auto_update_desc')}
+            value={sub.auto_update}
+            onChange={(auto_update) => patch({ auto_update })}
           />
           <SwitchRow
             title={t('editor.update_start')}

@@ -101,5 +101,14 @@ export function Icon({
   color: ColorValue;
   style?: StyleProp<ViewStyle>;
 }) {
-  return <SymbolView name={ICONS[name]} size={size} tintColor={color} style={style} />;
+  return (
+    <SymbolView
+      name={ICONS[name]}
+      size={size}
+      tintColor={color}
+      style={style}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    />
+  );
 }

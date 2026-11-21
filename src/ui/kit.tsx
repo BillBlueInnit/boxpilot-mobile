@@ -465,6 +465,7 @@ export function Row({
   return (
     <Pressable
       testID={testID}
+      accessibilityLabel={isIOS ? [title, below, beside].filter(Boolean).join(', ') : undefined}
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled}
