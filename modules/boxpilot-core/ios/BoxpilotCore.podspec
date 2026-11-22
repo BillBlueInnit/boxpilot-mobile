@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'BoxpilotCore'
-  s.version        = '0.2.0'
+  s.version        = '1.0.0'
   s.summary        = "BoxPilot's engine and VPN control"
   s.description    = 'The Rust engine (boxpilot-core) behind one JSON entry point, and the packet tunnel manager.'
   s.license        = 'MIT'

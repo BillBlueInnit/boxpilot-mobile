@@ -242,25 +242,25 @@ export default function Rules() {
                 backgroundColor: palette.card,
                 borderRadius: cardRadius,
                 borderCurve: 'continuous',
-                paddingHorizontal: 14,
-                paddingVertical: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 11,
                 borderWidth: active ? 1.5 : 1,
                 borderColor: active ? palette.accent : palette.separator,
                 opacity: isIOS && pressed ? 0.78 : 1,
                 overflow: 'hidden',
               })}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <Text
                   numberOfLines={1}
                   style={{
                     flex: 1,
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: '600',
                     color: active ? palette.accent : palette.text,
                   }}>
                   {title}
                 </Text>
-                {active ? <Icon name="success" size={16} color={palette.accent} /> : null}
+                {active ? <Icon name="success" size={15} color={palette.accent} /> : null}
               </View>
               <Text
                 numberOfLines={2}

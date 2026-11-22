@@ -101,6 +101,7 @@ export default function SettingsPage() {
 
       <Section header={t('set.routing_network_mobile')}>
         <Row
+          testID="setting-rules"
           title={t('nav.rules')}
           subtitle={isIOS ? undefined : t('home.rules_desc')}
           value={ruleValue}

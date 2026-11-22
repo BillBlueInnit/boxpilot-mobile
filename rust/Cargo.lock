@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "boxpilot_bridge"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "android_logger",
  "anyhow",

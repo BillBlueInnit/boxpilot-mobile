@@ -4,13 +4,13 @@ plugins {
 }
 
 group = 'io.github.billblueinnit.boxpilot'
-version = '0.2.0'
+version = '1.0.0'
 
 android {
   namespace "io.github.billblueinnit.boxpilot.core"
   defaultConfig {
     versionCode 1
-    versionName '0.2.0'
+    versionName '1.0.0'
     // libbox and the Rust bridge call these classes by name.
     consumerProguardFiles 'proguard-rules.pro'
   }

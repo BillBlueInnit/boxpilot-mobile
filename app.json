@@ -2,7 +2,7 @@
   "expo": {
     "name": "BoxPilot",
     "slug": "boxpilot",
-    "version": "0.2.0",
+    "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": [
