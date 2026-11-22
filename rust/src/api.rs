@@ -14,7 +14,9 @@ use boxpilot_core::convert;
 use boxpilot_core::engine::{CoreHost, CoreStatus, Engine, Event, NoticeKind, ResetScope};
 use boxpilot_core::geo::Origin;
 use boxpilot_core::model::{AutoStrategy, LOCAL_NODES_ID, ProxyMode, Settings, Subscription};
-use boxpilot_core::rules::{self, RuleProvider};
+use boxpilot_core::rules::{
+    self, CustomRuleKind, RuleMatchLayer, RuleProfile, RuleProvider, SERVICE_PRESETS, ServiceCategory,
+};
 use boxpilot_core::store::Paths;
 use futures_util::FutureExt;
 use futures_util::future::BoxFuture;
@@ -345,6 +347,10 @@ fn call(method: &str, a: Value) -> Result<Value> {
             e.speed_test(arg(&a, "names")?);
             Value::Null
         }
+        "cancelSpeedTest" => {
+            e.cancel_speed_test();
+            Value::Null
+        }
         "refreshProxies" => {
             e.refresh_proxies();
             Value::Null
@@ -383,6 +389,45 @@ fn call(method: &str, a: Value) -> Result<Value> {
             e.set_rule_provider_group(&arg::<String>(&a, "id")?, arg(&a, "on")?);
             Value::Null
         }
+        // Unified target + own_group update for a rule-set.
+        "setRuleProviderTarget" => {
+            e.set_rule_provider_target(
+                &arg::<String>(&a, "id")?,
+                arg::<String>(&a, "target")?,
+                arg::<bool>(&a, "own_group")?,
+            );
+            Value::Null
+        }
+        // The Proxies group tag for a rule-set's own group, if active.
+        "ruleGroupTagFor" => json!(e.rule_group_tag_for(&arg::<String>(&a, "id")?)),
+        // Curated built-in service presets and whether each is currently added.
+        "servicePresets" => SERVICE_PRESETS
+            .iter()
+            .map(|p| {
+                json!({
+                    "id": p.id,
+                    "category": service_category_id(p.category),
+                    "name": p.name,
+                    "geosite": p.geosite,
+                    "default_target": p.default_target,
+                    "default_own_group": p.default_own_group,
+                    "added": e.has_service_preset(p.id),
+                })
+            })
+            .collect(),
+        "addServicePreset" => json!(e.add_service_preset(&arg::<String>(&a, "id")?)),
+        "removeServicePreset" => {
+            e.remove_service_preset(&arg::<String>(&a, "id")?);
+            Value::Null
+        }
+        // One-click routing profiles.
+        "activeRuleProfile" => json!(e.active_rule_profile().map(rule_profile_id)),
+        "applyRuleProfile" => {
+            let id: String = arg(&a, "profile")?;
+            let profile = parse_rule_profile(&id).context("unknown rule profile")?;
+            e.apply_rule_profile(profile);
+            Value::Null
+        }
         // How that group picks its node: null for by hand, else an Auto mode. Live.
         "setRuleGroupPick" => {
             let pick: Option<AutoStrategy> = arg(&a, "pick")?;
@@ -410,6 +455,132 @@ fn call(method: &str, a: Value) -> Result<Value> {
             e.set_custom_rules(arg(&a, "text")?)?;
             Value::Null
         }
+        "customRulesParsed" => e
+            .custom_rules_parsed()
+            .into_iter()
+            .map(|r| {
+                json!({
+                    "line_index": r.line_index,
+                    "kind": r.kind.map(CustomRuleKind::token),
+                    "kind_raw": r.kind_raw,
+                    "value": r.value,
+                    "target": r.target,
+                    "enabled": r.enabled,
+                    "raw": r.raw,
+                    "error": r.error,
+                    "group": r.group,
+                })
+            })
+            .collect(),
+        "addStructuredCustomRule" => {
+            let kind_str: String = arg(&a, "kind")?;
+            let kind = CustomRuleKind::parse(&kind_str).context("unknown custom rule kind")?;
+            let value: String = arg(&a, "value")?;
+            let target: String = arg(&a, "target")?;
+            json!(e.add_structured_custom_rule(kind, &value, &target)?)
+        }
+        "updateCustomRule" => {
+            let line_index = arg::<u64>(&a, "line_index")? as usize;
+            let kind_str: String = arg(&a, "kind")?;
+            let kind = CustomRuleKind::parse(&kind_str).context("unknown custom rule kind")?;
+            let value: String = arg(&a, "value")?;
+            let target: String = arg(&a, "target")?;
+            let enabled: bool = arg(&a, "enabled")?;
+            e.update_custom_rule(line_index, kind, &value, &target, enabled)?;
+            Value::Null
+        }
+        "setCustomRuleEnabled" => {
+            let line_index = arg::<u64>(&a, "line_index")? as usize;
+            e.set_custom_rule_enabled(line_index, arg(&a, "enabled")?)?;
+            Value::Null
+        }
+        "removeCustomRule" => {
+            let line_index = arg::<u64>(&a, "line_index")? as usize;
+            e.remove_custom_rule(line_index)?;
+            Value::Null
+        }
+        "moveCustomRule" => {
+            let line_index = arg::<u64>(&a, "line_index")? as usize;
+            e.move_custom_rule(line_index, arg::<i64>(&a, "delta")? as isize)?;
+            Value::Null
+        }
+        // Named custom rule groups (with optional independent node groups on Proxies).
+        "customRuleGroups" => serde_json::to_value(e.custom_rule_groups())?,
+        "createCustomRuleGroup" => {
+            let name: String = arg(&a, "name")?;
+            let target: String = arg(&a, "target")?;
+            let own_group: bool = arg(&a, "own_group")?;
+            json!(e.create_custom_rule_group(name, target, own_group)?)
+        }
+        "renameCustomRuleGroup" => {
+            e.rename_custom_rule_group(&arg::<String>(&a, "id")?, arg::<String>(&a, "name")?)?;
+            Value::Null
+        }
+        "setCustomRuleGroupTarget" => {
+            e.set_custom_rule_group_target(
+                &arg::<String>(&a, "id")?,
+                arg::<String>(&a, "target")?,
+                arg::<bool>(&a, "own_group")?,
+            );
+            Value::Null
+        }
+        "setCustomRuleGroupEnabled" => {
+            e.set_custom_rule_group_enabled(&arg::<String>(&a, "id")?, arg(&a, "enabled")?);
+            Value::Null
+        }
+        "moveCustomRuleGroup" => {
+            e.move_custom_rule_group(&arg::<String>(&a, "id")?, arg::<i64>(&a, "delta")? as isize);
+            Value::Null
+        }
+        "removeCustomRuleGroup" => {
+            e.remove_custom_rule_group(&arg::<String>(&a, "id")?);
+            Value::Null
+        }
+        "customRuleGroupTagFor" => json!(e.custom_rule_group_tag_for(&arg::<String>(&a, "id")?)),
+        "setCustomRuleGroupPick" => {
+            let pick: Option<AutoStrategy> = arg(&a, "pick")?;
+            e.set_custom_rule_group_pick(&arg::<String>(&a, "id")?, pick, &arg::<String>(&a, "region")?);
+            Value::Null
+        }
+        "addStructuredCustomRuleInGroup" => {
+            let kind_str: String = arg(&a, "kind")?;
+            let kind = CustomRuleKind::parse(&kind_str).context("unknown custom rule kind")?;
+            let value: String = arg(&a, "value")?;
+            let target: String = arg(&a, "target")?;
+            let group_id: Option<String> = arg(&a, "group_id")?;
+            json!(e.add_structured_custom_rule_in_group(kind, &value, &target, group_id.as_deref())?)
+        }
+        "moveCustomRuleToGroup" => {
+            let line_index = arg::<u64>(&a, "line_index")? as usize;
+            let group_id: Option<String> = arg(&a, "group_id")?;
+            e.move_custom_rule_to_group(line_index, group_id.as_deref())?;
+            Value::Null
+        }
+        // Offline rule match simulator in exact routing priority order.
+        "testRuleMatch" => match e.test_rule_match(&arg::<String>(&a, "query")?) {
+            Some(res) => {
+                let layer = match res.layer {
+                    RuleMatchLayer::PrivateIp => json!({"kind": "private_ip"}),
+                    RuleMatchLayer::CustomRule { line_index } => {
+                        json!({"kind": "custom_rule", "line_index": line_index})
+                    }
+                    RuleMatchLayer::CustomGroup { id, name } => {
+                        json!({"kind": "custom_group", "id": id, "name": name})
+                    }
+                    RuleMatchLayer::RuleSet { id, name } => json!({"kind": "rule_set", "id": id, "name": name}),
+                    RuleMatchLayer::BuiltIn { name } => json!({"kind": "built_in", "name": name}),
+                    RuleMatchLayer::Fallback => json!({"kind": "fallback"}),
+                };
+                json!({
+                    "query": res.query,
+                    "layer": layer,
+                    "rule": res.rule,
+                    "target": res.target,
+                    "approximate": res.approximate,
+                })
+            }
+            None => Value::Null,
+        },
         // `TYPE,VALUE,TARGET`; replaces a rule for the same type and value.
         // False when it is already there. The core reloads to apply it.
         "addCustomRule" => json!(e.add_custom_rule(&arg::<String>(&a, "rule")?)?),
@@ -504,8 +675,14 @@ fn groups(e: &Engine) -> Value {
                     })
                 })
                 .collect();
-            // A rule-set's own group: its picker lives on the Proxies page.
-            let rule = e.rule_group(&g.name).map(|p| json!({"id": p.id, "pick": p.pick, "region": p.region}));
+            // A rule-set's or custom rule group's own node group: its picker lives on the Proxies page.
+            let rule = e
+                .rule_group(&g.name)
+                .map(|p| json!({"id": p.id, "pick": p.pick, "region": p.region, "source": "rule_set"}))
+                .or_else(|| {
+                    e.custom_rule_group_for_tag(&g.name)
+                        .map(|c| json!({"id": c.id, "pick": c.pick, "region": c.region, "source": "custom_group"}))
+                });
             json!({
                 "name": g.name,
                 "kind": g.kind,
@@ -538,3 +715,32 @@ fn connection(c: &Connection) -> Value {
 
 /// The id of the "Local nodes" group, for hosts that need it without JSON.
 pub const LOCAL_NODES: &str = LOCAL_NODES_ID;
+
+fn service_category_id(cat: ServiceCategory) -> &'static str {
+    match cat {
+        ServiceCategory::AiDev => "ai_dev",
+        ServiceCategory::Streaming => "streaming",
+        ServiceCategory::SocialGaming => "social_gaming",
+        ServiceCategory::DomesticPlatforms => "domestic",
+        ServiceCategory::General => "general",
+    }
+}
+
+fn rule_profile_id(p: RuleProfile) -> &'static str {
+    match p {
+        RuleProfile::Daily => "daily",
+        RuleProfile::MinimalBypassCn => "minimal",
+        RuleProfile::StreamingGaming => "streaming",
+        RuleProfile::DirectFirst => "direct_first",
+    }
+}
+
+fn parse_rule_profile(s: &str) -> Option<RuleProfile> {
+    match s {
+        "daily" => Some(RuleProfile::Daily),
+        "minimal" => Some(RuleProfile::MinimalBypassCn),
+        "streaming" => Some(RuleProfile::StreamingGaming),
+        "direct_first" => Some(RuleProfile::DirectFirst),
+        _ => None,
+    }
+}

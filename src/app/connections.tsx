@@ -1,11 +1,12 @@
 import * as Clipboard from 'expo-clipboard';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { type ConnectionInfo, type Connections, engine } from '@/core/engine';
 import { formatBytes, formatSpeed, outboundLabel } from '@/core/format';
 import { useT } from '@/core/hooks';
+import { extraTargetGroups } from '@/core/rules-ui';
 import { attempt, isRunning, notify, useStore } from '@/core/store';
 import { askChoice } from '@/ui/dialogs';
 import { EmptyState, GUTTER, Screen } from '@/ui/kit';
@@ -16,8 +17,12 @@ type Row = ConnectionInfo & { up: number; down: number };
 /** Live connections through the core. Tap one to add a rule for it or close it. */
 export default function ConnectionsPage() {
   const t = useT();
+  const router = useRouter();
   const palette = usePalette();
   const running = useStore((s) => isRunning(s.status));
+  const groups = useStore((s) => s.groups);
+  const providers = useStore((s) => s.ruleProviders);
+  const customGroups = useStore((s) => s.customRuleGroups);
   const [snapshot, setSnapshot] = useState<Connections | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState('');
@@ -63,6 +68,7 @@ export default function ConnectionsPage() {
 
   /** The desktop's right-click menu: a rule for this host, its site, the app or the address. */
   const menu = async (c: ConnectionInfo) => {
+    const extraGroups = extraTargetGroups(groups, providers, customGroups);
     const picked = await askChoice({
       title: c.target,
       message: [c.rule, c.chains.map(outboundLabel).reverse().join(' → ')].filter(Boolean).join('\n'),
@@ -71,11 +77,17 @@ export default function ConnectionsPage() {
         { value: 'direct', label: t('conn.always_direct') },
         { value: 'proxy', label: t('conn.always_proxy') },
         { value: 'reject', label: t('conn.always_block') },
+        ...(extraGroups.length > 0 ? [{ value: 'group', label: t('conn.route_to_group') }] : []),
+        { value: 'rules', label: t('rules.open_rules_mobile') },
         { value: 'copy', label: t('conn.copy_address') },
         { value: 'close', label: t('conn.close'), destructive: true },
       ],
     });
     if (picked === undefined) return;
+    if (picked === 'rules') {
+      router.push('/rules');
+      return;
+    }
     if (picked === 'copy') {
       await Clipboard.setStringAsync(c.target);
       notify('success', t('conn.copied'));
@@ -84,6 +96,15 @@ export default function ConnectionsPage() {
     if (picked === 'close') {
       await attempt(engine.closeConnection(c.id));
       return;
+    }
+    let target = picked;
+    if (picked === 'group') {
+      const groupPicked = await askChoice({
+        title: t('conn.route_to_group'),
+        options: extraGroups.map((g) => ({ value: g, label: outboundLabel(g) })),
+      });
+      if (!groupPicked) return;
+      target = groupPicked;
     }
     const matches: { label: string; rule: string }[] = [];
     if (c.host !== '') {
@@ -105,7 +126,7 @@ export default function ConnectionsPage() {
             options: matches.map((m) => ({ value: m.rule, label: m.label })),
           });
     if (!match) return;
-    const rule = `${match},${picked}`;
+    const rule = `${match},${target}`;
     // The core reloads to apply a rule, so open connections drop.
     const added = await attempt(engine.addCustomRule(rule));
     if (added !== undefined) notify(added ? 'success' : 'info', added ? t('conn.rule_added', [rule]) : t('conn.rule_exists'));

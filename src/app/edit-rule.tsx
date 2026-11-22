@@ -6,8 +6,9 @@ import { useState } from 'react';
 import { RULE_FORMATS, type RuleFormat, type RuleProvider, blankRuleProvider, engine } from '@/core/engine';
 import { outboundLabel } from '@/core/format';
 import { useT } from '@/core/hooks';
+import { OWN_GROUP_VALUE, extraTargetGroups } from '@/core/rules-ui';
 import { attempt, notify, useStore } from '@/core/store';
-import { ChoiceRow, Field, Row, Screen, Section, SwitchRow, useClose } from '@/ui/kit';
+import { ChoiceRow, Field, Row, Screen, Section, useClose } from '@/ui/kit';
 import { isIOS } from '@/ui/theme';
 
 const isUrl = (text: string) => /^https?:\/\/\S+$/.test(text);
@@ -19,6 +20,9 @@ export default function EditRule() {
   const close = useClose();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const existing = useStore((s) => s.ruleProviders.find((p) => p.id === id));
+  const providers = useStore((s) => s.ruleProviders);
+  const groups = useStore((s) => s.groups);
+  const customGroups = useStore((s) => s.customRuleGroups);
   const dataDir = useStore((s) => s.host?.dataDir ?? '');
   const isNew = !existing;
 
@@ -72,9 +76,18 @@ export default function EditRule() {
     if (saved !== undefined) close();
   };
 
-  const targets = ['proxy', 'direct', 'reject'];
-  // A target the desktop set to a group or node name stays selectable.
-  if (!targets.includes(rule.target)) targets.push(rule.target);
+  const extraGroups = extraTargetGroups(groups, providers, customGroups).filter((g) => g !== rule.name);
+  const currentTarget = rule.own_group && rule.target !== 'reject' ? OWN_GROUP_VALUE : rule.target;
+  const targetOptions = [
+    { value: 'proxy', label: t('target.proxy') },
+    { value: 'direct', label: t('target.direct') },
+    { value: 'reject', label: t('target.reject') },
+    { value: OWN_GROUP_VALUE, label: t('rules.own_group_option') },
+    ...extraGroups.map((g) => ({ value: g, label: outboundLabel(g) })),
+  ];
+  if (!targetOptions.some((o) => o.value === currentTarget)) {
+    targetOptions.push({ value: currentTarget, label: outboundLabel(currentTarget) });
+  }
 
   return (
     <Screen
@@ -127,25 +140,17 @@ export default function EditRule() {
         <ChoiceRow
           title={t('rules.target')}
           message={t('rules.target_hint')}
-          value={rule.target}
-          options={targets.map((v) => ({
-            value: v,
-            label: v === 'proxy' || v === 'direct' || v === 'reject' ? t(`target.${v}`) : outboundLabel(v),
-          }))}
-          onChange={(target) => patch({ target })}
+          value={currentTarget}
+          options={targetOptions}
+          onChange={(picked) => {
+            if (picked === OWN_GROUP_VALUE) {
+              patch({ target: rule.target === 'reject' ? 'proxy' : rule.target, own_group: true });
+            } else {
+              patch({ target: picked, own_group: false });
+            }
+          }}
         />
       </Section>
-
-      {rule.target !== 'reject' ? (
-        <Section>
-          <SwitchRow
-            title={t('rules.own_group_mobile')}
-            subtitle={t('rules.own_group_desc_mobile')}
-            value={rule.own_group}
-            onChange={(own_group) => patch({ own_group })}
-          />
-        </Section>
-      ) : null}
 
       <Section>
         <Field

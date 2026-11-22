@@ -1,11 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AUTO_STRATEGIES, type AutoStrategy, type Group, type Member, engine } from '@/core/engine';
 import { flagEmoji, formatSpeed, outboundLabel } from '@/core/format';
 import { useT } from '@/core/hooks';
-import { attempt, connect, isRunning, notify, settingOf, updateSettings, useStore } from '@/core/store';
+import { attempt, connect, focusProxyGroup, isRunning, notify, settingOf, updateSettings, useStore } from '@/core/store';
+import { AnimatedChevron, configureLayoutMotion, selectionHaptic } from '@/ui/anim';
 import { askChoice } from '@/ui/dialogs';
 import { Icon } from '@/ui/icons';
 import { Button, Chip, EmptyState, GUTTER, Screen } from '@/ui/kit';
@@ -40,14 +42,22 @@ export default function Proxies() {
   const t = useT();
   const running = useStore((s) => isRunning(s.status));
   const groups = useStore((s) => s.groups);
+  const pendingProxyGroup = useStore((s) => s.pendingProxyGroup);
+  const listRef = useRef<FlatList<Item>>(null);
   const [expanded, setExpanded] = useState<string[]>(['Proxy']);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<Sort>('order');
+
+  const speedTesting = useMemo(
+    () => groups.some((g) => g.members.some((m) => m.speed_testing)),
+    [groups],
+  );
 
   const items = useMemo(() => {
     const out: Item[] = [];
     for (const group of groups) {
-      const open = expanded.includes(group.name) || filter !== '';
+      const open = expanded.includes(group.name) || group.name === pendingProxyGroup || filter !== '';
       out.push({ kind: 'header', group, expanded: open });
       if (picksItself(group)) out.push({ kind: 'controls', group });
       if (open) {
@@ -58,7 +68,30 @@ export default function Proxies() {
       }
     }
     return out;
-  }, [groups, expanded, filter, sort]);
+  }, [groups, expanded, pendingProxyGroup, filter, sort]);
+
+  // Expand and scroll to a rule-set group when navigated from Rules.
+  useEffect(() => {
+    if (!pendingProxyGroup || groups.length === 0) return;
+    const match = groups.find((g) => g.name === pendingProxyGroup);
+    if (!match) return;
+    const idx = items.findIndex((it) => it.kind === 'header' && it.group.name === match.name);
+    let clearHighlight: ReturnType<typeof setTimeout> | null = null;
+    const timer = setTimeout(() => {
+      configureLayoutMotion();
+      setExpanded((list) => (list.includes(match.name) ? list : [...list, match.name]));
+      setHighlighted(match.name);
+      if (idx >= 0) {
+        listRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
+      }
+      focusProxyGroup(null);
+      clearHighlight = setTimeout(() => setHighlighted(null), 1600);
+    }, 60);
+    return () => {
+      clearTimeout(timer);
+      if (clearHighlight) clearTimeout(clearHighlight);
+    };
+  }, [pendingProxyGroup, groups, items]);
 
   /** Nodes (not groups) currently shown, for the bulk tests. */
   const shownNodes = () => {
@@ -69,8 +102,11 @@ export default function Proxies() {
     return [...names];
   };
 
-  const toggle = (name: string) =>
+  const toggle = (name: string) => {
+    selectionHaptic();
+    configureLayoutMotion();
     setExpanded((list) => (list.includes(name) ? list.filter((n) => n !== name) : [...list, name]));
+  };
 
   if (!running || groups.length === 0) {
     return (
@@ -96,6 +132,15 @@ export default function Proxies() {
       scroll={false}
       search={{ placeholder: t('proxies.filter'), onChange: setFilter }}
       actions={[
+        ...(speedTesting
+          ? [
+              {
+                icon: 'stop' as const,
+                label: t('btn.stop_speed'),
+                onPress: () => void engine.cancelSpeedTest(),
+              },
+            ]
+          : []),
         {
           icon: 'speed',
           label: t('btn.test_latency'),
@@ -106,7 +151,14 @@ export default function Proxies() {
               icon: 'realLatency',
               onPress: () => void engine.testRealLatency(shownNodes()),
             },
-            { label: t('btn.speed_test'), icon: 'download', onPress: () => void engine.speedTest(shownNodes()) },
+            speedTesting
+              ? {
+                  label: t('btn.stop_speed'),
+                  icon: 'stop',
+                  destructive: true,
+                  onPress: () => void engine.cancelSpeedTest(),
+                }
+              : { label: t('btn.speed_test'), icon: 'download', onPress: () => void engine.speedTest(shownNodes()) },
           ],
         },
         {
@@ -120,17 +172,24 @@ export default function Proxies() {
         },
       ]}>
       <FlatList
+        ref={listRef}
         data={items}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScrollToIndexFailed={() => {}}
         keyExtractor={(item) =>
           item.kind === 'member' ? `${item.group.name}/${item.member.name}` : `${item.kind}/${item.group.name}`
         }
         contentContainerStyle={{ paddingBottom: 32 }}
         renderItem={({ item }) =>
           item.kind === 'header' ? (
-            <GroupHeader group={item.group} expanded={item.expanded} onPress={() => toggle(item.group.name)} />
+            <GroupHeader
+              group={item.group}
+              expanded={item.expanded}
+              highlighted={highlighted === item.group.name}
+              onPress={() => toggle(item.group.name)}
+            />
           ) : item.kind === 'controls' ? (
             <PickControls group={item.group} />
           ) : (
@@ -142,7 +201,17 @@ export default function Proxies() {
   );
 }
 
-function GroupHeader({ group, expanded, onPress }: { group: Group; expanded: boolean; onPress: () => void }) {
+function GroupHeader({
+  group,
+  expanded,
+  highlighted,
+  onPress,
+}: {
+  group: Group;
+  expanded: boolean;
+  highlighted: boolean;
+  onPress: () => void;
+}) {
   const t = useT();
   const palette = usePalette();
   const pick = group.rule_group?.pick;
@@ -160,17 +229,25 @@ function GroupHeader({ group, expanded, onPress }: { group: Group; expanded: boo
       accessibilityState={{ expanded }}
       onPress={onPress}
       android_ripple={{ color: palette.fill }}
-      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER + 16, paddingTop: 16, paddingBottom: 8 }}>
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: GUTTER + 16,
+        paddingTop: 16,
+        paddingBottom: 8,
+        backgroundColor: highlighted ? palette.fill : undefined,
+        borderRadius: highlighted ? 16 : 0,
+      }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 17, fontWeight: '600', color: palette.text }}>{outboundLabel(group.name)}</Text>
+        <Text style={{ fontSize: 17, fontWeight: '600', color: highlighted ? palette.accent : palette.text }}>
+          {outboundLabel(group.name)}
+        </Text>
         <Text numberOfLines={1} style={{ fontSize: 13, color: palette.secondary, marginTop: 2 }}>
           {[kind, now].filter(Boolean).join(' · ')}
         </Text>
       </View>
       <Text style={{ fontSize: 15, color: palette.secondary, marginRight: 6 }}>{group.members.length}</Text>
-      <View style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}>
-        <Icon name="chevron" size={14} color={palette.secondary} />
-      </View>
+      <AnimatedChevron open={expanded} size={14} color={palette.secondary} />
     </Pressable>
   );
 }
@@ -178,6 +255,7 @@ function GroupHeader({ group, expanded, onPress }: { group: Group; expanded: boo
 /** How a group picks its node and which region it keeps to, as on the desktop's Proxies page. */
 function PickControls({ group }: { group: Group }) {
   const t = useT();
+  const router = useRouter();
   const palette = usePalette();
   const settings = useStore((s) => s.settings);
   const groups = useStore((s) => s.groups);
@@ -187,11 +265,19 @@ function PickControls({ group }: { group: Group }) {
   }, [groups]);
 
   const rule = group.rule_group;
+  const isCustomGroup = rule?.source === 'custom_group';
   const strategy: AutoStrategy | null = rule ? rule.pick : settingOf(settings, 'auto_strategy', 'quickest') as AutoStrategy;
   const region = rule ? rule.region : settingOf(settings, 'auto_region', '');
   const setPick = (pick: AutoStrategy | null, where: string) => {
-    if (rule) void attempt(engine.setRuleGroupPick(rule.id, pick, where));
-    else if (pick) updateSettings({ auto_strategy: pick, auto_region: where });
+    if (rule) {
+      void attempt(
+        isCustomGroup
+          ? engine.setCustomRuleGroupPick(rule.id, pick, where)
+          : engine.setRuleGroupPick(rule.id, pick, where),
+      );
+    } else if (pick) {
+      updateSettings({ auto_strategy: pick, auto_region: where });
+    }
   };
 
   const regionLabel = region === '' ? t('auto.region_any') : `${flagEmoji(region)} ${region}`;
@@ -223,9 +309,16 @@ function PickControls({ group }: { group: Group }) {
   if (isIOS && strategy) hint += ` ${t('auto.ios_managed')}`;
   return (
     <View style={{ paddingHorizontal: GUTTER + 16, paddingBottom: 10 }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <Chip icon="tune" label={strategy ? t(`auto.${strategy}`) : t('auto.manual')} onPress={pickStrategy} />
         {strategy ? <Chip icon="region" label={regionLabel} onPress={pickRegion} /> : null}
+        {rule ? (
+          <Chip
+            icon="rules"
+            label={`${isCustomGroup ? t('proxies.from_custom_group_mobile') : t('proxies.from_rule')} · ${t('proxies.edit_in_rules')}`}
+            onPress={() => router.push(isCustomGroup ? '/custom-rules' : '/rules')}
+          />
+        ) : null}
       </View>
       <Text style={{ fontSize: 12, lineHeight: 17, color: palette.secondary, marginTop: 8 }}>{hint}</Text>
     </View>
@@ -299,7 +392,14 @@ function MemberRow({ group, member, first, last }: { group: Group; member: Membe
         accessibilityRole="button"
         accessibilityState={{ selected }}
         disabled={!group.selectable && !isNode}
-        onPress={group.selectable && !selected ? () => void engine.selectProxy(group.name, member.name) : undefined}
+        onPress={
+          group.selectable && !selected
+            ? () => {
+                selectionHaptic();
+                void engine.selectProxy(group.name, member.name);
+              }
+            : undefined
+        }
         onLongPress={isNode ? menu : undefined}
         android_ripple={{ color: palette.fill }}
         style={({ pressed }) => ({

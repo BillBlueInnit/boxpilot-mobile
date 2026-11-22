@@ -20,7 +20,7 @@ void SplashScreen.preventAutoHideAsync();
 export const unstable_settings = { anchor: '(tabs)' };
 
 /** Forms slide up as sheets; everything else is pushed. */
-const FORMS = ['edit-subscription', 'add-node', 'edit-rule', 'import-acl', 'custom-rules', 'rule-text', 'reset'];
+const FORMS = ['edit-subscription', 'add-node', 'edit-rule', 'import-acl', 'service-library', 'rule-tester', 'rule-text', 'reset'];
 
 export default function Root() {
   const scheme = useColorScheme();

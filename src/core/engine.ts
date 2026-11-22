@@ -98,8 +98,13 @@ export type Group = {
   now: string;
   selectable: boolean;
   local_nodes: boolean;
-  /** Set for a rule-set's own node group. */
-  rule_group: { id: string; pick: AutoStrategy | null; region: string } | null;
+  /** Set for a rule-set's or custom rule group's own node group. */
+  rule_group: {
+    id: string;
+    pick: AutoStrategy | null;
+    region: string;
+    source?: 'rule_set' | 'custom_group';
+  } | null;
   members: Member[];
 };
 
@@ -133,6 +138,93 @@ export type RuleProvider = {
   own_group: boolean;
   pick?: AutoStrategy | null;
   region: string;
+  /** Built-in service preset id when created from the curated library. */
+  preset?: string | null;
+  /** Short human-readable subtitle for curated/external rule-sets. */
+  description?: string;
+};
+
+export type RuleProfileId = 'daily' | 'minimal' | 'streaming' | 'direct_first';
+export const RULE_PROFILES: RuleProfileId[] = ['daily', 'minimal', 'streaming', 'direct_first'];
+
+export type ServiceCategoryId = 'ai_dev' | 'streaming' | 'social_gaming' | 'domestic' | 'general';
+export const SERVICE_CATEGORIES: ServiceCategoryId[] = ['ai_dev', 'streaming', 'social_gaming', 'domestic', 'general'];
+
+export type ServicePreset = {
+  id: string;
+  category: ServiceCategoryId;
+  name: string;
+  geosite: string;
+  default_target: string;
+  default_own_group: boolean;
+  added: boolean;
+};
+
+export type CustomRuleKind =
+  | 'DOMAIN-SUFFIX'
+  | 'DOMAIN'
+  | 'DOMAIN-KEYWORD'
+  | 'PROCESS-NAME'
+  | 'IP-CIDR'
+  | 'DST-PORT'
+  | 'GEOSITE'
+  | 'GEOIP'
+  | 'DOMAIN-REGEX'
+  | 'PROCESS-PATH'
+  | 'SRC-IP-CIDR'
+  | 'NETWORK';
+
+export const CUSTOM_RULE_KINDS: CustomRuleKind[] = [
+  'DOMAIN-SUFFIX',
+  'DOMAIN',
+  'DOMAIN-KEYWORD',
+  'PROCESS-NAME',
+  'IP-CIDR',
+  'DST-PORT',
+  'GEOSITE',
+  'GEOIP',
+  'DOMAIN-REGEX',
+  'PROCESS-PATH',
+  'SRC-IP-CIDR',
+  'NETWORK',
+];
+
+export type CustomRule = {
+  line_index: number;
+  kind: CustomRuleKind | null;
+  kind_raw: string;
+  value: string;
+  target: string;
+  enabled: boolean;
+  raw: string;
+  error: string | null;
+  group: string | null;
+};
+
+export type CustomRuleGroup = {
+  id: string;
+  name: string;
+  target: string;
+  enabled: boolean;
+  own_group: boolean;
+  pick?: AutoStrategy | null;
+  region: string;
+};
+
+export type RuleMatchLayer =
+  | { kind: 'private_ip' }
+  | { kind: 'custom_rule'; line_index: number }
+  | { kind: 'custom_group'; id: string; name: string }
+  | { kind: 'rule_set'; id: string; name: string }
+  | { kind: 'built_in'; name: string }
+  | { kind: 'fallback' };
+
+export type RuleMatchResult = {
+  query: string;
+  layer: RuleMatchLayer;
+  rule: string;
+  target: string;
+  approximate: boolean;
 };
 
 export function blankRuleProvider(): RuleProvider {
@@ -222,6 +314,7 @@ export const engine = {
   testDelays: (names: string[]) => call('testDelays', { names }),
   testRealLatency: (names: string[]) => call('testRealLatency', { names }),
   speedTest: (names: string[]) => call('speedTest', { names }),
+  cancelSpeedTest: () => call('cancelSpeedTest'),
   refreshProxies: () => call('refreshProxies'),
   countryCounts: () => call<{ code: string; nodes: number }[]>('countryCounts'),
 
@@ -233,12 +326,46 @@ export const engine = {
   moveRuleProvider: (id: string, delta: number) => call('moveRuleProvider', { id, delta }),
   importAclIni: (source: string) => call<number>('importAclIni', { source }),
   setRuleProviderGroup: (id: string, on: boolean) => call('setRuleProviderGroup', { id, on }),
+  setRuleProviderTarget: (id: string, target: string, own_group: boolean) =>
+    call('setRuleProviderTarget', { id, target, own_group }),
+  ruleGroupTagFor: (id: string) => call<string | null>('ruleGroupTagFor', { id }),
+  servicePresets: () => call<ServicePreset[]>('servicePresets'),
+  addServicePreset: (id: string) => call<string | null>('addServicePreset', { id }),
+  removeServicePreset: (id: string) => call('removeServicePreset', { id }),
+  activeRuleProfile: () => call<RuleProfileId | null>('activeRuleProfile'),
+  applyRuleProfile: (profile: RuleProfileId) => call('applyRuleProfile', { profile }),
   setRuleGroupPick: (id: string, pick: AutoStrategy | null, region: string) =>
     call('setRuleGroupPick', { id, pick, region }),
   ruleProviderText: (id: string) => call<{ text: string; local_source: boolean } | null>('ruleProviderText', { id }),
   saveRuleProviderText: (id: string, text: string) => call('saveRuleProviderText', { id, text }),
   customRules: () => call<string>('customRules'),
   setCustomRules: (text: string) => call('setCustomRules', { text }),
+  customRulesParsed: () => call<CustomRule[]>('customRulesParsed'),
+  addStructuredCustomRule: (kind: CustomRuleKind, value: string, target: string) =>
+    call<boolean>('addStructuredCustomRule', { kind, value, target }),
+  updateCustomRule: (line_index: number, kind: CustomRuleKind, value: string, target: string, enabled: boolean) =>
+    call('updateCustomRule', { line_index, kind, value, target, enabled }),
+  setCustomRuleEnabled: (line_index: number, enabled: boolean) =>
+    call('setCustomRuleEnabled', { line_index, enabled }),
+  removeCustomRule: (line_index: number) => call('removeCustomRule', { line_index }),
+  moveCustomRule: (line_index: number, delta: number) => call('moveCustomRule', { line_index, delta }),
+  customRuleGroups: () => call<CustomRuleGroup[]>('customRuleGroups'),
+  createCustomRuleGroup: (name: string, target: string, own_group: boolean) =>
+    call<string>('createCustomRuleGroup', { name, target, own_group }),
+  renameCustomRuleGroup: (id: string, name: string) => call('renameCustomRuleGroup', { id, name }),
+  setCustomRuleGroupTarget: (id: string, target: string, own_group: boolean) =>
+    call('setCustomRuleGroupTarget', { id, target, own_group }),
+  setCustomRuleGroupEnabled: (id: string, enabled: boolean) => call('setCustomRuleGroupEnabled', { id, enabled }),
+  moveCustomRuleGroup: (id: string, delta: number) => call('moveCustomRuleGroup', { id, delta }),
+  removeCustomRuleGroup: (id: string) => call('removeCustomRuleGroup', { id }),
+  customRuleGroupTagFor: (id: string) => call<string | null>('customRuleGroupTagFor', { id }),
+  setCustomRuleGroupPick: (id: string, pick: AutoStrategy | null, region: string) =>
+    call('setCustomRuleGroupPick', { id, pick, region }),
+  addStructuredCustomRuleInGroup: (kind: CustomRuleKind, value: string, target: string, group_id: string | null) =>
+    call<boolean>('addStructuredCustomRuleInGroup', { kind, value, target, group_id }),
+  moveCustomRuleToGroup: (line_index: number, group_id: string | null) =>
+    call('moveCustomRuleToGroup', { line_index, group_id }),
+  testRuleMatch: (query: string) => call<RuleMatchResult | null>('testRuleMatch', { query }),
   addCustomRule: (rule: string) => call<boolean>('addCustomRule', { rule }),
   baseDomain: (host: string) => call<string | null>('baseDomain', { host }),
 

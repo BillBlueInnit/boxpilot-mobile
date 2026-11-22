@@ -8,6 +8,7 @@ import Native, { type HostInfo } from '../../modules/boxpilot-core';
 import { type LanguageCode, resolveLanguage, setLanguage, tr } from '../i18n';
 import {
   type CoreStatus,
+  type CustomRuleGroup,
   type EngineEvent,
   type Group,
   type RuleProvider,
@@ -38,6 +39,7 @@ type State = {
   totalNodes: number;
   groups: Group[];
   ruleProviders: RuleProvider[];
+  customRuleGroups: CustomRuleGroup[];
   coreVersion: string;
   /** When the core came up, in ms. */
   connectedSince: number | null;
@@ -48,6 +50,8 @@ type State = {
   sessionUp: number;
   sessionDown: number;
   notice: Notice | null;
+  /** Group name to expand and scroll to when navigating to Proxies from Rules. */
+  pendingProxyGroup: string | null;
 };
 
 const zeros = () => new Array<number>(TRAFFIC_SAMPLES).fill(0);
@@ -65,6 +69,7 @@ export const useStore = create<State>(() => ({
   totalNodes: 0,
   groups: [],
   ruleProviders: [],
+  customRuleGroups: [],
   coreVersion: '',
   connectedSince: null,
   logRevision: 0,
@@ -73,10 +78,16 @@ export const useStore = create<State>(() => ({
   sessionUp: 0,
   sessionDown: 0,
   notice: null,
+  pendingProxyGroup: null,
 }));
 
 const set = useStore.setState;
 const get = useStore.getState;
+
+/** Queues a proxy group to be expanded & focused when Proxies opens. */
+export function focusProxyGroup(name: string | null) {
+  set({ pendingProxyGroup: name });
+}
 
 export const isRunning = (s: CoreStatus) => s.state === 'running';
 export const isBusy = (s: CoreStatus) => s.state === 'starting' || s.state === 'stopping';
@@ -151,6 +162,7 @@ function onEvent(e: EngineEvent) {
       break;
     case 'settings':
       void loadSettings();
+      void engine.customRuleGroups().then((customRuleGroups) => set({ customRuleGroups }), () => {});
       break;
     case 'coreInfo':
       void engine.coreVersion().then((coreVersion) => set({ coreVersion }));
@@ -165,6 +177,7 @@ function onEvent(e: EngineEvent) {
       break;
     case 'ruleProviders':
       void engine.ruleProviders().then((ruleProviders) => set({ ruleProviders }));
+      void engine.customRuleGroups().then((customRuleGroups) => set({ customRuleGroups }), () => {});
       break;
     case 'notice':
       notify(e.kind, tr(e.key, e.args));
@@ -188,9 +201,13 @@ export async function startApp() {
         // An event this version does not know.
       }
     });
-    const [coreVersion, ruleProviders] = await Promise.all([engine.coreVersion(), engine.ruleProviders()]);
+    const [coreVersion, ruleProviders, customRuleGroups] = await Promise.all([
+      engine.coreVersion(),
+      engine.ruleProviders(),
+      engine.customRuleGroups().catch(() => [] as CustomRuleGroup[]),
+    ]);
     await Promise.all([loadSettings(), loadSubscriptions(), loadStatus()]);
-    set({ host, coreVersion, ruleProviders, ready: true });
+    set({ host, coreVersion, ruleProviders, customRuleGroups, ready: true });
     // The tunnel outlived the app (iOS keeps it when the app is closed): take it
     // over again. Starting a running core reloads it in place.
     if (host.tunnelRunning && !isRunning(get().status)) {

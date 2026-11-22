@@ -71,6 +71,16 @@ export function outboundLabel(name: string): string {
       return tr('group.direct');
     case 'Local nodes':
       return tr('local.title');
+    case 'AI Services':
+      return tr('svc.ai');
+    case 'Bilibili':
+      return tr('svc.bilibili');
+    case 'Apple CN':
+      return tr('svc.apple');
+    case 'Microsoft CN':
+      return tr('svc.microsoft');
+    case 'Overseas Sites':
+      return tr('svc.overseas');
     default:
       return name;
   }

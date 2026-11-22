@@ -80,8 +80,10 @@ type ScreenProps = {
   title: string;
   /** A tab's first page: large title on iOS, no back button on Android. */
   root?: boolean;
-  /** Presented as a form: Cancel on the leading side. */
+  /** Presented as a form: Cancel (or `dismissLabel`) on the leading side. */
   modal?: boolean;
+  /** Leading button text for a modal sheet (defaults to Cancel). */
+  dismissLabel?: string;
   actions?: Action[];
   search?: { placeholder: string; onChange: (text: string) => void };
   /** False when the child scrolls itself (a FlatList). */
@@ -96,7 +98,18 @@ export function Screen(props: ScreenProps) {
   return isIOS ? <IosScreen {...props} /> : <AndroidScreen {...props} />;
 }
 
-function IosScreen({ title, root, modal, actions = [], search, scroll = true, onRefresh, refreshing, children }: ScreenProps) {
+function IosScreen({
+  title,
+  root,
+  modal,
+  dismissLabel,
+  actions = [],
+  search,
+  scroll = true,
+  onRefresh,
+  refreshing,
+  children,
+}: ScreenProps) {
   const palette = usePalette();
   const close = useClose();
   return (
@@ -118,7 +131,7 @@ function IosScreen({ title, root, modal, actions = [], search, scroll = true, on
       />
       {modal ? (
         <Stack.Toolbar placement="left">
-          <Stack.Toolbar.Button onPress={close}>{tr('btn.cancel')}</Stack.Toolbar.Button>
+          <Stack.Toolbar.Button onPress={close}>{dismissLabel ?? tr('btn.cancel')}</Stack.Toolbar.Button>
         </Stack.Toolbar>
       ) : null}
       {actions.length > 0 ? (
@@ -566,6 +579,7 @@ export function SwitchRow({
 /** A row picking one of `options`: an action sheet on iOS, a radio dialog on Android. */
 export function ChoiceRow<T>({
   title,
+  subtitle,
   message,
   icon,
   value,
@@ -574,6 +588,7 @@ export function ChoiceRow<T>({
   testID,
 }: {
   title: string;
+  subtitle?: string;
   /** Explains the choice, in the picker. */
   message?: string;
   icon?: RowIcon;
@@ -586,6 +601,7 @@ export function ChoiceRow<T>({
   return (
     <Row
       title={title}
+      subtitle={subtitle}
       icon={icon}
       value={current}
       chevron

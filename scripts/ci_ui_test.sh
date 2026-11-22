@@ -33,6 +33,8 @@ if [ "$platform" = android ]; then
   adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS < /dev/null || true
   # A slow emulator's "app isn't responding" dialogs would cover screenshots.
   adb shell settings put global hide_error_dialogs 1 < /dev/null || true
+  adb shell settings put secure anr_show_background 0 < /dev/null || true
+  adb shell settings put global show_first_crash_dialog 0 < /dev/null || true
 else
   host=127.0.0.1
 fi

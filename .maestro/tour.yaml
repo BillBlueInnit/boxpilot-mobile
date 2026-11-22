@@ -6,6 +6,18 @@
 appId: io.github.billblueinnit.boxpilot
 ---
 - launchApp
+# Slow CI emulators can pop a system ANR dialog (e.g. Pixel Launcher isn't
+# responding) over the app right after boot; dismiss it if present.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: 'Close app'
+          optional: true
+      - tapOn:
+          text: 'Wait'
+          optional: true
 - extendedWaitUntil:
     visible: 'Tools'
     timeout: 90000
@@ -90,9 +102,45 @@ appId: io.github.billblueinnit.boxpilot
 - scrollUntilVisible:
     element: 'Rules'
     direction: UP
+    centerElement: true
 - tapOn: 'Rules'
-- assertVisible: 'Bypass mainland China'
+- extendedWaitUntil:
+    visible: 'One-click setups'
+    timeout: 20000
 - takeScreenshot: 10_rules
+- scrollUntilVisible:
+    element:
+      id: 'custom-rules'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'custom-rules'
+- extendedWaitUntil:
+    visible: 'Visual'
+    timeout: 15000
+- takeScreenshot: 10b_custom_rules
+- runFlow: back.yaml
+- scrollUntilVisible:
+    element:
+      id: 'service-library'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'service-library'
+- extendedWaitUntil:
+    visible: 'Popular services'
+    timeout: 15000
+- takeScreenshot: 10c_service_library
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Close'
 - runFlow: back.yaml
 
 # The app's own theme setting, independent of the system's.
@@ -100,6 +148,7 @@ appId: io.github.billblueinnit.boxpilot
     element:
       id: 'setting-theme'
     direction: UP
+    centerElement: true
 - tapOn:
     id: 'setting-theme'
 - tapOn: 'Dark'

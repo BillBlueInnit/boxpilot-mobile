@@ -1,10 +1,13 @@
-import { useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
-import { type Group, type Member, engine } from '@/core/engine';
+import { type Group, type Member, type RuleProfileId, engine } from '@/core/engine';
 import { formatBytes, formatDuration, formatSpeed, outboundLabel } from '@/core/format';
 import { useT, useTick } from '@/core/hooks';
+import { profileMeta } from '@/core/rules-ui';
 import { enabledNodes, isBusy, isRunning, setMode, settingOf, toggle, useStore } from '@/core/store';
+import { selectionHaptic } from '@/ui/anim';
 import { Icon } from '@/ui/icons';
 import { Button, Card, GUTTER, Heading, Row, Screen, Section, Segmented } from '@/ui/kit';
 import { isIOS, usePalette } from '@/ui/theme';
@@ -33,8 +36,27 @@ export default function Home() {
   const t = useT();
   const router = useRouter();
   const status = useStore((s) => s.status);
+  const settings = useStore((s) => s.settings);
+  const providers = useStore((s) => s.ruleProviders);
   const hasSubscriptions = useStore((s) => s.subscriptions.length > 0 || s.local != null);
   const running = isRunning(status);
+  const mode = settingOf(settings, 'mode', 'Rule');
+  const [activeProfile, setActiveProfile] = useState<RuleProfileId | null>(null);
+
+  const loadProfile = useCallback(() => {
+    void engine.activeRuleProfile().then(setActiveProfile, () => setActiveProfile(null));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
+  useEffect(() => {
+    loadProfile();
+  }, [providers, settings, loadProfile]);
+
+  const ruleSummary = mode === 'Rule' && activeProfile ? profileMeta(activeProfile).title : undefined;
   return (
     <Screen
       title="BoxPilot"
@@ -64,6 +86,7 @@ export default function Home() {
         <Row
           title={t('nav.rules')}
           subtitle={isIOS ? undefined : t('home.rules_desc')}
+          value={ruleSummary}
           icon={{ name: 'rules', color: isIOS ? '#5856D6' : undefined }}
           chevron
           onPress={() => router.push('/rules')}
@@ -188,7 +211,10 @@ function ModeCard() {
         <Segmented
           labels={MODES.map((m) => t(`mode.${m.toLowerCase()}`))}
           index={Math.max(0, MODES.indexOf(mode))}
-          onChange={(i) => setMode(MODES[i])}
+          onChange={(i) => {
+            selectionHaptic();
+            setMode(MODES[i]);
+          }}
         />
         <Text style={{ fontSize: 13, lineHeight: 18, color: palette.secondary, marginHorizontal: 16, marginTop: 8 }}>
           {t('quick.mode_desc')}
@@ -200,37 +226,45 @@ function ModeCard() {
 
 function NowUsing() {
   const t = useT();
+  const router = useRouter();
   const palette = usePalette();
   const running = useStore((s) => isRunning(s.status));
   const groups = useStore((s) => s.groups);
   const { node, path } = currentRoute(groups);
+  const canOpen = running && node != null;
   return (
     <>
       <Heading>{t('dash.now_using')}</Heading>
-      <Card style={{ marginHorizontal: GUTTER }}>
-        {!running || !node ? (
-          <Text style={{ fontSize: 16, color: palette.secondary }}>{t('status.disconnected')}</Text>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {node.country ? <CountryBadge code={node.country} /> : null}
-                <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 17, fontWeight: '600', color: palette.text }}>
-                  {outboundLabel(node.name)}
+      <Pressable
+        disabled={!canOpen}
+        onPress={canOpen ? () => router.navigate('/(tabs)/proxies') : undefined}
+        style={({ pressed }) => ({ opacity: isIOS && pressed ? 0.78 : 1 })}>
+        <Card style={{ marginHorizontal: GUTTER }}>
+          {!running || !node ? (
+            <Text style={{ fontSize: 16, color: palette.secondary }}>{t('status.disconnected')}</Text>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {node.country ? <CountryBadge code={node.country} /> : null}
+                  <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 17, fontWeight: '600', color: palette.text }}>
+                    {outboundLabel(node.name)}
+                  </Text>
+                </View>
+                <Text numberOfLines={1} style={{ fontSize: 13, color: palette.secondary, marginTop: 4 }}>
+                  {[...path, node.protocol.toUpperCase()].join(' · ')}
                 </Text>
               </View>
-              <Text numberOfLines={1} style={{ fontSize: 13, color: palette.secondary, marginTop: 4 }}>
-                {[...path, node.protocol.toUpperCase()].join(' · ')}
-              </Text>
+              <LatencyBadge
+                delay={node.real_delay ?? node.delay}
+                testing={node.testing}
+                onPress={() => void engine.testDelays([node.name])}
+              />
+              {isIOS ? <Icon name="chevron" size={14} color={palette.tertiary} style={{ marginLeft: 8 }} /> : null}
             </View>
-            <LatencyBadge
-              delay={node.real_delay ?? node.delay}
-              testing={node.testing}
-              onPress={() => void engine.testDelays([node.name])}
-            />
-          </View>
-        )}
-      </Card>
+          )}
+        </Card>
+      </Pressable>
     </>
   );
 }
